@@ -247,14 +247,19 @@ static void AbortHandler(int signum) {
   switch (signum) {
   case SIGSEGV:
     Log.report(logvisor::Fatal, "Segmentation Fault");
+    break;
   case SIGILL:
     Log.report(logvisor::Fatal, "Bad Execution");
+    break;
   case SIGFPE:
     Log.report(logvisor::Fatal, "Floating Point Exception");
+    break;
   case SIGABRT:
     Log.report(logvisor::Fatal, "Abort Signal");
+    break;
   default:
     Log.report(logvisor::Fatal, "unknown signal %d", signum);
+    break;
   }
 }
 
