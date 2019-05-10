@@ -99,8 +99,8 @@ void KillProcessTree() {
 
     // kill child processes
     while (bContinue) {
-      // only kill child processes
-      if (pe.th32ParentProcessID == myprocID) {
+      // only kill child processes and let console window remain
+      if (pe.th32ParentProcessID == myprocID && wcscmp(pe.szExeFile, L"conhost.exe")) {
         HANDLE hChildProc = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe.th32ProcessID);
 
         if (hChildProc) {
