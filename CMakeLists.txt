@@ -5,4 +5,4 @@ add_library(logvisor
 
 set(LOGVISOR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include CACHE PATH "logvisor include path" FORCE)
 
-install(DIRECTORY include/logvisor DESTINATION include/logvisor) 
+install(DIRECTORY include/logvisor DESTINATION include) 
