@@ -47,6 +47,8 @@
 #define FOREGROUND_WHITE FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
 #endif
 
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+
 void logvisorBp() {}
 
 namespace logvisor {
