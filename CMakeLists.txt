@@ -1,13 +1,19 @@
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  cmake_minimum_required(VERSION 3.10 FATAL_ERROR) # because of c++17
+  project(nod VERSION 0.1)
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif()
+
 include (CMakePackageConfigHelpers)
 
-include_directories(include)
 add_library(logvisor
             lib/logvisor.cpp
             include/logvisor/logvisor.hpp)
 
 target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS})
 
-set(LOGVISOR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include CACHE PATH "logvisor include path" FORCE)
+target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 install(DIRECTORY include/logvisor DESTINATION include) 
 
