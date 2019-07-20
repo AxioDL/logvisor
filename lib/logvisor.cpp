@@ -184,25 +184,22 @@ void logvisorAbort() {
   readlink("/proc/self/exe", exeNameBuffer, exeBufSize);
 #endif
 
-  char cmdLine[1024];
 #if __APPLE__
-  snprintf(cmdLine, 1024, "atos -p %d", getpid());
+  std::string cmdLineStr = fmt::format(fmt("atos -p {}"), getpid());
 #else
-  snprintf(cmdLine, 1024, "2>/dev/null addr2line -C -f -e \"%s\"", exeNameBuffer);
+  std::string cmdLineStr = fmt::format(fmt("2>/dev/null addr2line -C -f -e \"{}\""), exeNameBuffer);
 #endif
 
-  std::string cmdLineStr = cmdLine;
   for (size_t i = 0; i < size; i++) {
 #if __linux__
     Dl_info dlip;
     if (dladdr(array[i], &dlip))
-      snprintf(cmdLine, 128, " %p", (void*)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
+      cmdLineStr += fmt::format(fmt(" 0x{:016X}"), (uintptr_t)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
     else
-      snprintf(cmdLine, 128, " %p", array[i]);
+      cmdLineStr += fmt::format(fmt(" 0x{:016X}"), (uintptr_t)array[i]);
 #else
-    snprintf(cmdLine, 128, " %p", array[i]);
+    cmdLineStr += fmt::format(fmt(" 0x{:016X}"), (uintptr_t)array[i]);
 #endif
-    cmdLineStr += cmdLine;
   }
 
   FILE* fp = popen(cmdLineStr.c_str(), "r");
@@ -210,26 +207,26 @@ void logvisorAbort() {
     char readBuf[256];
     size_t readSz;
     while ((readSz = fread(readBuf, 1, 256, fp)))
-      fwrite(readBuf, 1, readSz, stderr);
+      std::fwrite(readBuf, 1, readSz, stderr);
     pclose(fp);
   } else {
     for (size_t i = 0; i < size; i++) {
-      fprintf(stderr, "- ");
+      std::fputs("- ", stderr);
       Dl_info dlip;
       if (dladdr(array[i], &dlip)) {
         int status;
         char* demangledName = abi::__cxa_demangle(dlip.dli_sname, nullptr, nullptr, &status);
-        fprintf(stderr, "%p(%s+%p)\n", dlip.dli_saddr, demangledName ? demangledName : dlip.dli_sname,
-                (void*)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
-        free(demangledName);
+        std::fprintf(stderr, "%p(%s+%p)\n", dlip.dli_saddr, demangledName ? demangledName : dlip.dli_sname,
+                     (void*)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
+        std::free(demangledName);
       } else {
-        fprintf(stderr, "%p\n", array[i]);
+        std::fprintf(stderr, "%p\n", array[i]);
       }
     }
   }
 
-  fflush(stderr);
-  fflush(stdout);
+  std::fflush(stderr);
+  std::fflush(stdout);
   KillProcessTree();
 
 #ifndef NDEBUG
@@ -248,19 +245,19 @@ static void AbortHandler(int signum) {
   _LogMutex.enabled = false;
   switch (signum) {
   case SIGSEGV:
-    Log.report(logvisor::Fatal, "Segmentation Fault");
+    Log.report(logvisor::Fatal, fmt("Segmentation Fault"));
     break;
   case SIGILL:
-    Log.report(logvisor::Fatal, "Bad Execution");
+    Log.report(logvisor::Fatal, fmt("Bad Execution"));
     break;
   case SIGFPE:
-    Log.report(logvisor::Fatal, "Floating Point Exception");
+    Log.report(logvisor::Fatal, fmt("Floating Point Exception"));
     break;
   case SIGABRT:
-    Log.report(logvisor::Fatal, "Abort Signal");
+    Log.report(logvisor::Fatal, fmt("Abort Signal"));
     break;
   default:
-    Log.report(logvisor::Fatal, "unknown signal %d", signum);
+    Log.report(logvisor::Fatal, fmt("unknown signal {}"), signum);
     break;
   }
 }
@@ -324,10 +321,10 @@ struct ConsoleLogger : public ILogger {
   static void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     /* Clear current line out */
     int width = ConsoleWidth();
-    fprintf(stderr, "\r");
+    std::fputs("\r", stderr);
     for (int w = 0; w < width; ++w)
-      fprintf(stderr, " ");
-    fprintf(stderr, "\r");
+      std::fputs(" ", stderr);
+    std::fputs("\r", stderr);
 
     std::chrono::steady_clock::duration tm = CurrentUptime();
     double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
@@ -338,33 +335,33 @@ struct ConsoleLogger : public ILogger {
       thrName = ThreadMap[thrId];
 
     if (XtermColor) {
-      fprintf(stderr, BOLD "[");
-      fprintf(stderr, GREEN "%5.4f ", tmd);
+      std::fputs(BOLD "[", stderr);
+      fmt::print(stderr, fmt(GREEN "{:5.4} "), tmd);
       uint_fast64_t fIdx = FrameIndex.load();
       if (fIdx)
-        fprintf(stderr, "(%" PRIu64 ") ", fIdx);
+        fmt::print(stderr, fmt("({}) "), fIdx);
       switch (severity) {
       case Info:
-        fprintf(stderr, BOLD CYAN "INFO");
+        std::fputs(BOLD CYAN "INFO", stderr);
         break;
       case Warning:
-        fprintf(stderr, BOLD YELLOW "WARNING");
+        std::fputs(BOLD YELLOW "WARNING", stderr);
         break;
       case Error:
-        fprintf(stderr, RED BOLD "ERROR");
+        std::fputs(RED BOLD "ERROR", stderr);
         break;
       case Fatal:
-        fprintf(stderr, BOLD RED "FATAL ERROR");
+        std::fputs(BOLD RED "FATAL ERROR", stderr);
         break;
       default:
         break;
       };
-      fprintf(stderr, NORMAL BOLD " %s", modName);
+      fmt::print(stderr, fmt(NORMAL BOLD " {}"), modName);
       if (sourceInfo)
-        fprintf(stderr, BOLD YELLOW " {%s}", sourceInfo);
+        fmt::print(stderr, fmt(BOLD YELLOW " {{}}"), sourceInfo);
       if (thrName)
-        fprintf(stderr, BOLD MAGENTA " (%s)", thrName);
-      fprintf(stderr, NORMAL BOLD "] " NORMAL);
+        fmt::print(stderr, fmt(BOLD MAGENTA " ({})"), thrName);
+      std::fputs(NORMAL BOLD "] " NORMAL, stderr);
     } else {
 #if _WIN32
 #if !WINDOWS_STORE
@@ -408,69 +405,65 @@ struct ConsoleLogger : public ILogger {
       SetConsoleTextAttribute(Term, FOREGROUND_WHITE);
 #endif
 #else
-      fprintf(stderr, "[");
-      fprintf(stderr, "%5.4f ", tmd);
+      std::fputs("[", stderr);
+      fmt::print(stderr, fmt("{:5.4} "), tmd);
       uint_fast64_t fIdx = FrameIndex.load();
       if (fIdx)
-        fprintf(stderr, "(%" PRIu64 ") ", fIdx);
+        fmt::print(stderr, fmt("({}) "), fIdx);
       switch (severity) {
       case Info:
-        fprintf(stderr, "INFO");
+        std::fputs("INFO", stderr);
         break;
       case Warning:
-        fprintf(stderr, "WARNING");
+        std::fputs("WARNING", stderr);
         break;
       case Error:
-        fprintf(stderr, "ERROR");
+        std::fputs("ERROR", stderr);
         break;
       case Fatal:
-        fprintf(stderr, "FATAL ERROR");
+        std::fputs("FATAL ERROR", stderr);
         break;
       default:
         break;
       };
-      fprintf(stderr, " %s", modName);
+      fmt::print(stderr, fmt(" {}"), modName);
       if (sourceInfo)
-        fprintf(stderr, " {%s}", sourceInfo);
+        fmt::print(stderr, fmt(" {{}}"), sourceInfo);
       if (thrName)
-        fprintf(stderr, " (%s)", thrName);
-      fprintf(stderr, "] ");
+        fmt::print(stderr, fmt(" ({})"), thrName);
+      std::fputs("] ", stderr);
 #endif
     }
   }
 
-  void report(const char* modName, Level severity, const char* format, va_list ap) {
+  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) {
     _reportHead(modName, nullptr, severity);
-    vfprintf(stderr, format, ap);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    fmt::vprint(stderr, format, args);
+    std::fputs("\n", stderr);
+    std::fflush(stderr);
   }
 
-  void report(const char* modName, Level severity, const wchar_t* format, va_list ap) {
+  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) {
     _reportHead(modName, nullptr, severity);
-    vfwprintf(stderr, format, ap);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    fmt::vprint(stderr, format, args);
+    std::fputs("\n", stderr);
+    std::fflush(stderr);
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, const char* format,
-                    va_list ap) {
-    char sourceInfo[128];
-    snprintf(sourceInfo, 128, "%s:%u", file, linenum);
-    _reportHead(modName, sourceInfo, severity);
-    vfprintf(stderr, format, ap);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
+                    fmt::string_view format, fmt::format_args args) {
+    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    fmt::vprint(stderr, format, args);
+    std::fputs("\n", stderr);
+    std::fflush(stderr);
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, const wchar_t* format,
-                    va_list ap) {
-    char sourceInfo[128];
-    snprintf(sourceInfo, 128, "%s:%u", file, linenum);
-    _reportHead(modName, sourceInfo, severity);
-    vfwprintf(stderr, format, ap);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
+                    fmt::wstring_view format, fmt::wformat_args args) {
+    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    fmt::vprint(stderr, format, args);
+    std::fputs("\n", stderr);
+    std::fflush(stderr);
   }
 };
 
@@ -502,7 +495,7 @@ void RegisterStandardExceptions() {
 struct FileLogger : public ILogger {
   FILE* fp;
   virtual void openFile() = 0;
-  virtual void closeFile() { fclose(fp); }
+  virtual void closeFile() { std::fclose(fp); }
 
   void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     std::chrono::steady_clock::duration tm = CurrentUptime();
@@ -513,70 +506,66 @@ struct FileLogger : public ILogger {
     if (ThreadMap.find(thrId) != ThreadMap.end())
       thrName = ThreadMap[thrId];
 
-    fprintf(fp, "[");
-    fprintf(fp, "%5.4f ", tmd);
+    std::fputs("[", fp);
+    std::fprintf(fp, "%5.4f ", tmd);
     uint_fast64_t fIdx = FrameIndex.load();
     if (fIdx)
-      fprintf(fp, "(%" PRIu64 ") ", fIdx);
+      std::fprintf(fp, "(%" PRIu64 ") ", fIdx);
     switch (severity) {
     case Info:
-      fprintf(fp, "INFO");
+      std::fputs("INFO", fp);
       break;
     case Warning:
-      fprintf(fp, "WARNING");
+      std::fputs("WARNING", fp);
       break;
     case Error:
-      fprintf(fp, "ERROR");
+      std::fputs("ERROR", fp);
       break;
     case Fatal:
-      fprintf(fp, "FATAL ERROR");
+      std::fputs("FATAL ERROR", fp);
       break;
     default:
       break;
     };
-    fprintf(fp, " %s", modName);
+    std::fprintf(fp, " %s", modName);
     if (sourceInfo)
-      fprintf(fp, " {%s}", sourceInfo);
+      std::fprintf(fp, " {%s}", sourceInfo);
     if (thrName)
-      fprintf(fp, " (%s)", thrName);
-    fprintf(fp, "] ");
+      std::fprintf(fp, " (%s)", thrName);
+    std::fputs("] ", fp);
   }
 
-  void report(const char* modName, Level severity, const char* format, va_list ap) {
+  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) {
     openFile();
     _reportHead(modName, nullptr, severity);
-    vfprintf(fp, format, ap);
-    fprintf(fp, "\n");
+    fmt::vprint(fp, format, args);
+    std::fputs("\n", fp);
     closeFile();
   }
 
-  void report(const char* modName, Level severity, const wchar_t* format, va_list ap) {
+  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) {
     openFile();
     _reportHead(modName, nullptr, severity);
-    vfwprintf(fp, format, ap);
-    fprintf(fp, "\n");
+    fmt::vprint(fp, format, args);
+    std::fputs("\n", fp);
     closeFile();
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, const char* format,
-                    va_list ap) {
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
+                    fmt::string_view format, fmt::format_args args) {
     openFile();
-    char sourceInfo[128];
-    snprintf(sourceInfo, 128, "%s:%u", file, linenum);
-    _reportHead(modName, sourceInfo, severity);
-    vfprintf(fp, format, ap);
-    fprintf(fp, "\n");
+    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    fmt::vprint(fp, format, args);
+    std::fputs("\n", fp);
     closeFile();
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, const wchar_t* format,
-                    va_list ap) {
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
+                    fmt::wstring_view format, fmt::wformat_args args) {
     openFile();
-    char sourceInfo[128];
-    snprintf(sourceInfo, 128, "%s:%u", file, linenum);
-    _reportHead(modName, sourceInfo, severity);
-    vfwprintf(fp, format, ap);
-    fprintf(fp, "\n");
+    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    fmt::vprint(fp, format, args);
+    std::fputs("\n", fp);
     closeFile();
   }
 };
@@ -584,7 +573,7 @@ struct FileLogger : public ILogger {
 struct FileLogger8 : public FileLogger {
   const char* m_filepath;
   FileLogger8(const char* filepath) : m_filepath(filepath) {}
-  void openFile() { fp = fopen(m_filepath, "a"); }
+  void openFile() { fp = std::fopen(m_filepath, "a"); }
 };
 
 void RegisterFileLogger(const char* filepath) {

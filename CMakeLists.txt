@@ -7,15 +7,18 @@ endif()
 
 include (CMakePackageConfigHelpers)
 
+add_subdirectory(fmt)
+
 add_library(logvisor
             lib/logvisor.cpp
             include/logvisor/logvisor.hpp)
 
-target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS})
+target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS} fmt)
 
 target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 install(DIRECTORY include/logvisor DESTINATION include) 
+install(DIRECTORY fmt/include/fmt DESTINATION include)
 
 set(version_config_file "${PROJECT_BINARY_DIR}/logvisorConfigVersion.cmake")
 set(config_file "${PROJECT_BINARY_DIR}/logvisorConfig.cmake")
@@ -23,7 +26,7 @@ set(config_install_dir "lib/cmake/logvisor")
 
 # Associate target with export
 install(
-    TARGETS logvisor
+    TARGETS logvisor fmt
     EXPORT logvisorTargets
     ARCHIVE DESTINATION "lib"
     INCLUDES DESTINATION include  # This sets the INTERFACE_INCLUDE_DIRECTORIES property of the target.

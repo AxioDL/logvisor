@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdarg>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -8,6 +7,11 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+
+#define FMT_STRING_ALIAS 1
+#define FMT_ENFORCE_COMPILE_STRING 1
+#define FMT_USE_GRISU 0
+#include <fmt/format.h>
 
 #ifdef __SWITCH__
 #include "nxstl/mutex"
@@ -40,13 +44,13 @@ enum Level {
  * @brief Backend interface for receiving app-wide log events
  */
 struct ILogger {
-  virtual ~ILogger() {}
-  virtual void report(const char* modName, Level severity, const char* format, va_list ap) = 0;
-  virtual void report(const char* modName, Level severity, const wchar_t* format, va_list ap) = 0;
-  virtual void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, const char* format,
-                            va_list ap) = 0;
+  virtual ~ILogger() = default;
+  virtual void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) = 0;
+  virtual void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) = 0;
   virtual void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
-                            const wchar_t* format, va_list ap) = 0;
+                            fmt::string_view format, fmt::format_args args) = 0;
+  virtual void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
+                            fmt::wstring_view format, fmt::wformat_args args) = 0;
 };
 
 /**
@@ -107,7 +111,7 @@ extern LogMutex _LogMutex;
  * @brief Take a centralized lock for the logging output stream(s)
  * @return RAII mutex lock
  */
-static inline std::unique_lock<std::recursive_mutex> LockLog() { return _LogMutex.lock(); }
+inline std::unique_lock<std::recursive_mutex> LockLog() { return _LogMutex.lock(); }
 
 extern uint64_t _LogCounter;
 
@@ -115,12 +119,12 @@ extern uint64_t _LogCounter;
  * @brief Get current count of logging events
  * @return Log Count
  */
-static inline uint64_t GetLogCounter() { return _LogCounter; }
+inline uint64_t GetLogCounter() { return _LogCounter; }
 
 /**
  * @brief Restore centralized logger vector to default state (silent operation)
  */
-static inline void UnregisterLoggers() { MainLoggers.clear(); }
+inline void UnregisterLoggers() { MainLoggers.clear(); }
 
 /**
  * @brief Construct and register a real-time console logger singleton
@@ -168,6 +172,40 @@ void RegisterFileLogger(const wchar_t* filepath);
 class Module {
   const char* m_modName;
 
+  template <typename Char>
+  void _vreport(Level severity, fmt::basic_string_view<Char> format,
+                fmt::basic_format_args<fmt::buffer_context<Char>> args) {
+    auto lk = LockLog();
+    ++_LogCounter;
+    if (severity == Fatal)
+      RegisterConsoleLogger();
+    for (auto& logger : MainLoggers)
+      logger->report(m_modName, severity, format, args);
+    if (severity == Error || severity == Fatal)
+      logvisorBp();
+    if (severity == Fatal)
+      logvisorAbort();
+    else if (severity == Error)
+      ++ErrorCount;
+  }
+
+  template <typename Char>
+  void _vreportSource(Level severity, const char* file, unsigned linenum, fmt::basic_string_view<Char> format,
+                      fmt::basic_format_args<fmt::buffer_context<Char>> args) {
+    auto lk = LockLog();
+    ++_LogCounter;
+    if (severity == Fatal)
+      RegisterConsoleLogger();
+    for (auto& logger : MainLoggers)
+      logger->reportSource(m_modName, severity, file, linenum, format, args);
+    if (severity == Error || severity == Fatal)
+      logvisorBp();
+    if (severity == Fatal)
+      logvisorAbort();
+    else if (severity == Error)
+      ++ErrorCount;
+  }
+
 public:
   Module(const char* modName) : m_modName(modName) {}
 
@@ -176,34 +214,21 @@ public:
    * @param severity Level of log report severity
    * @param format Standard printf-style format string
    */
-  template <typename CharType>
-  inline void report(Level severity, const CharType* format, ...) {
+  template <typename S, typename... Args, typename Char = fmt::char_t<S>>
+  void report(Level severity, const S& format, Args&&... args) {
     if (MainLoggers.empty() && severity != Level::Fatal)
       return;
-    va_list ap;
-    va_start(ap, format);
-    report(severity, format, ap);
-    va_end(ap);
+    _vreport(severity, fmt::to_string_view<Char>(format),
+             fmt::basic_format_args<fmt::buffer_context<Char>>(
+                 fmt::internal::make_args_checked<Args...>(format, args...)));
   }
 
-  template <typename CharType>
-  inline void report(Level severity, const CharType* format, va_list ap) {
-    auto lk = LockLog();
-    ++_LogCounter;
-    if (severity == Fatal)
-      RegisterConsoleLogger();
-    for (auto& logger : MainLoggers) {
-      va_list apc;
-      va_copy(apc, ap);
-      logger->report(m_modName, severity, format, apc);
-      va_end(apc);
-    }
-    if (severity == Error || severity == Fatal)
-      logvisorBp();
-    if (severity == Fatal)
-      logvisorAbort();
-    else if (severity == Error)
-      ++ErrorCount;
+  template <typename Char>
+  void vreport(Level severity, fmt::basic_string_view<Char> format,
+               fmt::basic_format_args<fmt::buffer_context<Char>> args) {
+    if (MainLoggers.empty() && severity != Level::Fatal)
+      return;
+    _vreport(severity, format, args);
   }
 
   /**
@@ -213,34 +238,66 @@ public:
    * @param linenum Source line number from __LINE__ macro
    * @param format Standard printf-style format string
    */
-  template <typename CharType>
-  inline void reportSource(Level severity, const char* file, unsigned linenum, const CharType* format, ...) {
+  template <typename S, typename... Args, typename Char = fmt::char_t<S>>
+  void reportSource(Level severity, const char* file, unsigned linenum, const S& format, Args&&... args) {
     if (MainLoggers.empty() && severity != Level::Fatal)
       return;
-    va_list ap;
-    va_start(ap, format);
-    reportSource(severity, file, linenum, format, ap);
-    va_end(ap);
+    _vreportSource(
+        severity, file, linenum, fmt::to_string_view<Char>(format),
+        fmt::basic_format_args<fmt::buffer_context<Char>>(
+            fmt::internal::make_args_checked<Args...>(format, args...)));
   }
 
-  template <typename CharType>
-  inline void reportSource(Level severity, const char* file, unsigned linenum, const CharType* format, va_list ap) {
-    auto lk = LockLog();
-    ++_LogCounter;
-    if (severity == Fatal)
-      RegisterConsoleLogger();
-    for (auto& logger : MainLoggers) {
-      va_list apc;
-      va_copy(apc, ap);
-      logger->reportSource(m_modName, severity, file, linenum, format, apc);
-      va_end(apc);
-    }
-
-    if (severity == Fatal)
-      logvisorAbort();
-    else if (severity == Error)
-      ++ErrorCount;
+  template <typename Char>
+  void vreportSource(Level severity, const char* file, unsigned linenum, fmt::basic_string_view<Char> format,
+                     fmt::basic_format_args<fmt::buffer_context<Char>> args) {
+    if (MainLoggers.empty() && severity != Level::Fatal)
+      return;
+    _vreportSource(severity, file, linenum, format, args);
   }
 };
+
+#define Lfmt(str) fmt(L##str)
+#define ufmt(str) fmt(u##str)
+#define Ufmt(str) fmt(U##str)
+#define FMT_CUSTOM_FORMATTER(tp, ...) \
+namespace fmt { \
+template <> \
+struct formatter<tp, char> { \
+  template <typename ParseContext> \
+  constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
+  template <typename FormatContext> \
+  auto format(const tp &obj, FormatContext &ctx) { \
+    return format_to(ctx.out(), __VA_ARGS__); \
+  } \
+}; \
+template <> \
+struct formatter<tp, wchar_t> { \
+  template <typename ParseContext> \
+  constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
+  template <typename FormatContext> \
+  auto format(const tp &obj, FormatContext &ctx) { \
+    return format_to(ctx.out(), L##__VA_ARGS__); \
+  } \
+}; \
+template <> \
+struct formatter<tp, char16_t> { \
+  template <typename ParseContext> \
+  constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
+  template <typename FormatContext> \
+  auto format(const tp &obj, FormatContext &ctx) { \
+    return format_to(ctx.out(), u##__VA_ARGS__); \
+  } \
+}; \
+template <> \
+struct formatter<tp, char32_t> { \
+  template <typename ParseContext> \
+  constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
+  template <typename FormatContext> \
+  auto format(const tp &obj, FormatContext &ctx) { \
+    return format_to(ctx.out(), U##__VA_ARGS__); \
+  } \
+}; \
+}
 
 } // namespace logvisor
