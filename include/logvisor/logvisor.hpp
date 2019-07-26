@@ -257,10 +257,7 @@ public:
   }
 };
 
-#define Lfmt(str) fmt(L##str)
-#define ufmt(str) fmt(u##str)
-#define Ufmt(str) fmt(U##str)
-#define FMT_CUSTOM_FORMATTER(tp, ...) \
+#define FMT_CUSTOM_FORMATTER(tp, fmtstr, ...) \
 namespace fmt { \
 template <> \
 struct formatter<tp, char> { \
@@ -268,7 +265,7 @@ struct formatter<tp, char> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), __VA_ARGS__); \
+    return format_to(ctx.out(), fmt(fmtstr), __VA_ARGS__); \
   } \
 }; \
 template <> \
@@ -277,7 +274,7 @@ struct formatter<tp, wchar_t> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), L##__VA_ARGS__); \
+    return format_to(ctx.out(), fmt(L##fmtstr), __VA_ARGS__); \
   } \
 }; \
 template <> \
@@ -286,7 +283,7 @@ struct formatter<tp, char16_t> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), u##__VA_ARGS__); \
+    return format_to(ctx.out(), fmt(u##fmtstr), __VA_ARGS__); \
   } \
 }; \
 template <> \
@@ -295,7 +292,7 @@ struct formatter<tp, char32_t> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), U##__VA_ARGS__); \
+    return format_to(ctx.out(), fmt(U##fmtstr), __VA_ARGS__); \
   } \
 }; \
 }
