@@ -207,7 +207,7 @@ class Module {
   }
 
 public:
-  Module(const char* modName) : m_modName(modName) {}
+  constexpr Module(const char* modName) : m_modName(modName) {}
 
   /**
    * @brief Route new log message to centralized ILogger
