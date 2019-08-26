@@ -446,30 +446,30 @@ struct ConsoleLogger : public ILogger {
     }
   }
 
-  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) {
+  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) override {
     _reportHead(modName, nullptr, severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 
-  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) {
+  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {
     _reportHead(modName, nullptr, severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
-                    fmt::string_view format, fmt::format_args args) {
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
+                    fmt::format_args args) override {
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
-                    fmt::wstring_view format, fmt::wformat_args args) {
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
+                    fmt::wformat_args args) override {
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
@@ -549,7 +549,7 @@ struct FileLogger : public ILogger {
     std::fputs("] ", fp);
   }
 
-  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) {
+  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) override {
     openFile();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
@@ -557,7 +557,7 @@ struct FileLogger : public ILogger {
     closeFile();
   }
 
-  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) {
+  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {
     openFile();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
@@ -565,8 +565,8 @@ struct FileLogger : public ILogger {
     closeFile();
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
-                    fmt::string_view format, fmt::format_args args) {
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
+                    fmt::format_args args) override {
     openFile();
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
@@ -574,8 +574,8 @@ struct FileLogger : public ILogger {
     closeFile();
   }
 
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
-                    fmt::wstring_view format, fmt::wformat_args args) {
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
+                    fmt::wformat_args args) override {
     openFile();
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
@@ -587,7 +587,7 @@ struct FileLogger : public ILogger {
 struct FileLogger8 : public FileLogger {
   const char* m_filepath;
   FileLogger8(const char* filepath) : m_filepath(filepath) {}
-  void openFile() { fp = std::fopen(m_filepath, "a"); }
+  void openFile() override { fp = std::fopen(m_filepath, "a"); }
 };
 
 void RegisterFileLogger(const char* filepath) {
@@ -600,7 +600,7 @@ void RegisterFileLogger(const char* filepath) {
 struct FileLogger16 : public FileLogger {
   const wchar_t* m_filepath;
   FileLogger16(const wchar_t* filepath) : m_filepath(filepath) {}
-  void openFile() { fp = _wfopen(m_filepath, L"a"); }
+  void openFile() override { fp = _wfopen(m_filepath, L"a"); }
 };
 
 void RegisterFileLogger(const wchar_t* filepath) {
