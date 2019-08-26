@@ -167,7 +167,7 @@ void RegisterFileLogger(const wchar_t* filepath);
 #endif
 
 /**
- * @brief This is constructed per-subsystem in a locally centralized fashon
+ * @brief This is constructed per-subsystem in a locally centralized fashion
  */
 class Module {
   const char* m_modName;
@@ -212,7 +212,7 @@ public:
   /**
    * @brief Route new log message to centralized ILogger
    * @param severity Level of log report severity
-   * @param format Standard printf-style format string
+   * @param format fmt-style format string
    */
   template <typename S, typename... Args, typename Char = fmt::char_t<S>>
   void report(Level severity, const S& format, Args&&... args) {
@@ -236,7 +236,7 @@ public:
    * @param severity Level of log report severity
    * @param file Source file name from __FILE__ macro
    * @param linenum Source line number from __LINE__ macro
-   * @param format Standard printf-style format string
+   * @param format fmt-style format string
    */
   template <typename S, typename... Args, typename Char = fmt::char_t<S>>
   void reportSource(Level severity, const char* file, unsigned linenum, const S& format, Args&&... args) {
