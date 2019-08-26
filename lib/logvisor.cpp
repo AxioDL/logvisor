@@ -134,7 +134,7 @@ void logvisorAbort() {
   for (i = 0; i < frames; i++) {
     SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);
 
-    fprintf(stderr, "%i: %s - 0x%0llX", frames - i - 1, symbol->Name, symbol->Address);
+    std::fprintf(stderr, "%i: %s - 0x%0llX", frames - i - 1, symbol->Name, symbol->Address);
 
     DWORD dwDisplacement;
     IMAGEHLP_LINE64 line;
@@ -143,14 +143,14 @@ void logvisorAbort() {
     line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
     if (SymGetLineFromAddr64(process, (DWORD64)(stack[i]), &dwDisplacement, &line)) {
       // SymGetLineFromAddr64 returned success
-      fprintf(stderr, " LINE %d\n", int(line.LineNumber));
+      std::fprintf(stderr, " LINE %d\n", int(line.LineNumber));
     } else {
-      fprintf(stderr, "\n");
+      std::fputc('\n', stderr);
     }
   }
 
-  fflush(stderr);
-  free(symbol);
+  std::fflush(stderr);
+  std::free(symbol);
 
 #endif
 
@@ -320,26 +320,29 @@ struct ConsoleLogger : public ILogger {
 
   static void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     /* Clear current line out */
-    int width = ConsoleWidth();
-    std::fputs("\r", stderr);
-    for (int w = 0; w < width; ++w)
-      std::fputs(" ", stderr);
-    std::fputs("\r", stderr);
+    const int width = ConsoleWidth();
+    std::fputc('\r', stderr);
+    for (int w = 0; w < width; ++w) {
+      std::fputc(' ', stderr);
+    }
+    std::fputc('\r', stderr);
 
-    std::chrono::steady_clock::duration tm = CurrentUptime();
-    double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
-                 (double)std::chrono::steady_clock::duration::period::den;
-    std::thread::id thrId = std::this_thread::get_id();
+    const std::chrono::steady_clock::duration tm = CurrentUptime();
+    const double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
+                       static_cast<double>(std::chrono::steady_clock::duration::period::den);
+    const std::thread::id thrId = std::this_thread::get_id();
     const char* thrName = nullptr;
-    if (ThreadMap.find(thrId) != ThreadMap.end())
+    if (ThreadMap.find(thrId) != ThreadMap.end()) {
       thrName = ThreadMap[thrId];
+    }
 
     if (XtermColor) {
       std::fputs(BOLD "[", stderr);
       fmt::print(stderr, fmt(GREEN "{:5.4} "), tmd);
-      uint_fast64_t fIdx = FrameIndex.load();
-      if (fIdx)
+      const uint_fast64_t fIdx = FrameIndex.load();
+      if (fIdx != 0) {
         fmt::print(stderr, fmt("({}) "), fIdx);
+      }
       switch (severity) {
       case Info:
         std::fputs(BOLD CYAN "INFO", stderr);
@@ -357,55 +360,60 @@ struct ConsoleLogger : public ILogger {
         break;
       };
       fmt::print(stderr, fmt(NORMAL BOLD " {}"), modName);
-      if (sourceInfo)
+      if (sourceInfo) {
         fmt::print(stderr, fmt(BOLD YELLOW " {{}}"), sourceInfo);
-      if (thrName)
+      }
+      if (thrName) {
         fmt::print(stderr, fmt(BOLD MAGENTA " ({})"), thrName);
+      }
       std::fputs(NORMAL BOLD "] " NORMAL, stderr);
     } else {
 #if _WIN32
 #if !WINDOWS_STORE
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      fprintf(stderr, "[");
+      std::fputc('[', stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN);
-      fprintf(stderr, "%5.4f ", tmd);
-      uint64_t fi = FrameIndex.load();
-      if (fi)
-        fprintf(stderr, "(%" PRIu64 ") ", fi);
+      std::fprintf(stderr, "%5.4f ", tmd);
+      const uint64_t fi = FrameIndex.load();
+      if (fi != 0) {
+        std::fprintf(stderr, "(%" PRIu64 ") ", fi);
+      }
       switch (severity) {
       case Info:
         SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
-        fprintf(stderr, "INFO");
+        std::fputs("INFO", stderr);
         break;
       case Warning:
         SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN);
-        fprintf(stderr, "WARNING");
+        std::fputs("WARNING", stderr);
         break;
       case Error:
         SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED);
-        fprintf(stderr, "ERROR");
+        std::fputs("ERROR", stderr);
         break;
       case Fatal:
         SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED);
-        fprintf(stderr, "FATAL ERROR");
+        std::fputs("FATAL ERROR", stderr);
         break;
       default:
         break;
-      };
+      }
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      fprintf(stderr, " %s", modName);
+      std::fprintf(stderr, " %s", modName);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN);
-      if (sourceInfo)
-        fprintf(stderr, " {%s}", sourceInfo);
+      if (sourceInfo) {
+        std::fprintf(stderr, " {%s}", sourceInfo);
+      }
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_BLUE);
-      if (thrName)
-        fprintf(stderr, " (%s)", thrName);
+      if (thrName) {
+        std::fprintf(stderr, " (%s)", thrName);
+      }
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      fprintf(stderr, "] ");
+      std::fputs("] ", stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_WHITE);
 #endif
 #else
-      std::fputs("[", stderr);
+      std::fputc('[', stderr);
       fmt::print(stderr, fmt("{:5.4} "), tmd);
       uint_fast64_t fIdx = FrameIndex.load();
       if (fIdx)
@@ -425,12 +433,14 @@ struct ConsoleLogger : public ILogger {
         break;
       default:
         break;
-      };
+      }
       fmt::print(stderr, fmt(" {}"), modName);
-      if (sourceInfo)
+      if (sourceInfo) {
         fmt::print(stderr, fmt(" {{}}"), sourceInfo);
-      if (thrName)
+      }
+      if (thrName) {
         fmt::print(stderr, fmt(" ({})"), thrName);
+      }
       std::fputs("] ", stderr);
 #endif
     }
@@ -439,14 +449,14 @@ struct ConsoleLogger : public ILogger {
   void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) {
     _reportHead(modName, nullptr, severity);
     fmt::vprint(stderr, format, args);
-    std::fputs("\n", stderr);
+    std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 
   void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) {
     _reportHead(modName, nullptr, severity);
     fmt::vprint(stderr, format, args);
-    std::fputs("\n", stderr);
+    std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 
@@ -454,7 +464,7 @@ struct ConsoleLogger : public ILogger {
                     fmt::string_view format, fmt::format_args args) {
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
-    std::fputs("\n", stderr);
+    std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 
@@ -462,7 +472,7 @@ struct ConsoleLogger : public ILogger {
                     fmt::wstring_view format, fmt::wformat_args args) {
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
-    std::fputs("\n", stderr);
+    std::fputc('\n', stderr);
     std::fflush(stderr);
   }
 };
@@ -478,9 +488,9 @@ void CreateWin32Console() {
   /* Debug console */
   AllocConsole();
 
-  freopen("CONIN$", "r", stdin);
-  freopen("CONOUT$", "w", stdout);
-  freopen("CONOUT$", "w", stderr);
+  std::freopen("CONIN$", "r", stdin);
+  std::freopen("CONOUT$", "w", stdout);
+  std::freopen("CONOUT$", "w", stderr);
 #endif
 }
 #endif
@@ -498,19 +508,21 @@ struct FileLogger : public ILogger {
   virtual void closeFile() { std::fclose(fp); }
 
   void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
-    std::chrono::steady_clock::duration tm = CurrentUptime();
-    double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
-                 (double)std::chrono::steady_clock::duration::period::den;
-    std::thread::id thrId = std::this_thread::get_id();
+    const std::chrono::steady_clock::duration tm = CurrentUptime();
+    const double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
+                       static_cast<double>(std::chrono::steady_clock::duration::period::den);
+    const std::thread::id thrId = std::this_thread::get_id();
     const char* thrName = nullptr;
-    if (ThreadMap.find(thrId) != ThreadMap.end())
+    if (ThreadMap.find(thrId) != ThreadMap.end()) {
       thrName = ThreadMap[thrId];
+    }
 
-    std::fputs("[", fp);
+    std::fputc('[', fp);
     std::fprintf(fp, "%5.4f ", tmd);
-    uint_fast64_t fIdx = FrameIndex.load();
-    if (fIdx)
+    const uint_fast64_t fIdx = FrameIndex.load();
+    if (fIdx != 0) {
       std::fprintf(fp, "(%" PRIu64 ") ", fIdx);
+    }
     switch (severity) {
     case Info:
       std::fputs("INFO", fp);
@@ -528,10 +540,12 @@ struct FileLogger : public ILogger {
       break;
     };
     std::fprintf(fp, " %s", modName);
-    if (sourceInfo)
+    if (sourceInfo) {
       std::fprintf(fp, " {%s}", sourceInfo);
-    if (thrName)
+    }
+    if (thrName) {
       std::fprintf(fp, " (%s)", thrName);
+    }
     std::fputs("] ", fp);
   }
 
@@ -539,7 +553,7 @@ struct FileLogger : public ILogger {
     openFile();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
-    std::fputs("\n", fp);
+    std::fputc('\n', fp);
     closeFile();
   }
 
@@ -547,7 +561,7 @@ struct FileLogger : public ILogger {
     openFile();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
-    std::fputs("\n", fp);
+    std::fputc('\n', fp);
     closeFile();
   }
 
@@ -556,7 +570,7 @@ struct FileLogger : public ILogger {
     openFile();
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
-    std::fputs("\n", fp);
+    std::fputc('\n', fp);
     closeFile();
   }
 
@@ -565,7 +579,7 @@ struct FileLogger : public ILogger {
     openFile();
     _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
-    std::fputs("\n", fp);
+    std::fputc('\n', fp);
     closeFile();
   }
 };
