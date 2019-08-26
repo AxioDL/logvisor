@@ -220,7 +220,7 @@ public:
       return;
     _vreport(severity, fmt::to_string_view<Char>(format),
              fmt::basic_format_args<fmt::buffer_context<Char>>(
-                 fmt::internal::make_args_checked<Args...>(format, args...)));
+                 fmt::internal::make_args_checked<Args...>(format, std::forward<Args>(args)...)));
   }
 
   template <typename Char>
@@ -242,10 +242,9 @@ public:
   void reportSource(Level severity, const char* file, unsigned linenum, const S& format, Args&&... args) {
     if (MainLoggers.empty() && severity != Level::Fatal)
       return;
-    _vreportSource(
-        severity, file, linenum, fmt::to_string_view<Char>(format),
-        fmt::basic_format_args<fmt::buffer_context<Char>>(
-            fmt::internal::make_args_checked<Args...>(format, args...)));
+    _vreportSource(severity, file, linenum, fmt::to_string_view<Char>(format),
+                   fmt::basic_format_args<fmt::buffer_context<Char>>(
+                       fmt::internal::make_args_checked<Args...>(format, std::forward<Args>(args)...)));
   }
 
   template <typename Char>
