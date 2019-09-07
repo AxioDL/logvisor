@@ -21,7 +21,7 @@ extern "C" void logvisorBp();
 
 namespace logvisor {
 
-void logvisorAbort();
+[[noreturn]] void logvisorAbort();
 
 #if _WIN32 && UNICODE
 #define LOG_UCS2 1
