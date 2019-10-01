@@ -322,9 +322,8 @@ struct ConsoleLogger : public ILogger {
     /* Clear current line out */
     const int width = ConsoleWidth();
     std::fputc('\r', stderr);
-    for (int w = 0; w < width; ++w) {
+    for (int w = 0; w < width; ++w)
       std::fputc(' ', stderr);
-    }
     std::fputc('\r', stderr);
 
     const std::chrono::steady_clock::duration tm = CurrentUptime();
@@ -332,17 +331,15 @@ struct ConsoleLogger : public ILogger {
                        static_cast<double>(std::chrono::steady_clock::duration::period::den);
     const std::thread::id thrId = std::this_thread::get_id();
     const char* thrName = nullptr;
-    if (ThreadMap.find(thrId) != ThreadMap.end()) {
+    if (ThreadMap.find(thrId) != ThreadMap.end())
       thrName = ThreadMap[thrId];
-    }
 
     if (XtermColor) {
       std::fputs(BOLD "[", stderr);
-      fmt::print(stderr, fmt(GREEN "{:5.4} "), tmd);
+      fmt::print(stderr, fmt(GREEN "{:.4f} "), tmd);
       const uint_fast64_t fIdx = FrameIndex.load();
-      if (fIdx != 0) {
+      if (fIdx != 0)
         fmt::print(stderr, fmt("({}) "), fIdx);
-      }
       switch (severity) {
       case Info:
         std::fputs(BOLD CYAN "INFO", stderr);
@@ -360,12 +357,10 @@ struct ConsoleLogger : public ILogger {
         break;
       };
       fmt::print(stderr, fmt(NORMAL BOLD " {}"), modName);
-      if (sourceInfo) {
+      if (sourceInfo)
         fmt::print(stderr, fmt(BOLD YELLOW " {{}}"), sourceInfo);
-      }
-      if (thrName) {
+      if (thrName)
         fmt::print(stderr, fmt(BOLD MAGENTA " ({})"), thrName);
-      }
       std::fputs(NORMAL BOLD "] " NORMAL, stderr);
     } else {
 #if _WIN32
@@ -373,11 +368,10 @@ struct ConsoleLogger : public ILogger {
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
       std::fputc('[', stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN);
-      std::fprintf(stderr, "%5.4f ", tmd);
+      fmt::print(stderr, fmt("{:.4f} "), tmd);
       const uint64_t fi = FrameIndex.load();
-      if (fi != 0) {
+      if (fi != 0)
         std::fprintf(stderr, "(%" PRIu64 ") ", fi);
-      }
       switch (severity) {
       case Info:
         SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
@@ -399,22 +393,20 @@ struct ConsoleLogger : public ILogger {
         break;
       }
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      std::fprintf(stderr, " %s", modName);
+      fmt::print(stderr, fmt(" {}"), modName);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN);
-      if (sourceInfo) {
-        std::fprintf(stderr, " {%s}", sourceInfo);
-      }
+      if (sourceInfo)
+        fmt::print(stderr, fmt(" {{}}"), sourceInfo);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_BLUE);
-      if (thrName) {
-        std::fprintf(stderr, " (%s)", thrName);
-      }
+      if (thrName)
+        fmt::print(stderr, fmt(" ({})"), thrName);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
       std::fputs("] ", stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_WHITE);
 #endif
 #else
       std::fputc('[', stderr);
-      fmt::print(stderr, fmt("{:5.4} "), tmd);
+      fmt::print(stderr, fmt("{:.4f} "), tmd);
       uint_fast64_t fIdx = FrameIndex.load();
       if (fIdx)
         fmt::print(stderr, fmt("({}) "), fIdx);
@@ -435,12 +427,10 @@ struct ConsoleLogger : public ILogger {
         break;
       }
       fmt::print(stderr, fmt(" {}"), modName);
-      if (sourceInfo) {
+      if (sourceInfo)
         fmt::print(stderr, fmt(" {{}}"), sourceInfo);
-      }
-      if (thrName) {
+      if (thrName)
         fmt::print(stderr, fmt(" ({})"), thrName);
-      }
       std::fputs("] ", stderr);
 #endif
     }
@@ -477,9 +467,14 @@ struct ConsoleLogger : public ILogger {
   }
 };
 
+static bool ConsoleLoggerRegistered = false;
+
 void RegisterConsoleLogger() {
   /* Otherwise construct new console logger */
-  MainLoggers.emplace_back(new ConsoleLogger);
+  if (!ConsoleLoggerRegistered) {
+    MainLoggers.emplace_back(new ConsoleLogger);
+    ConsoleLoggerRegistered = true;
+  }
 }
 
 #if _WIN32
