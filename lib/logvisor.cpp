@@ -116,7 +116,7 @@ void KillProcessTree() {
   }
 }
 
-void logvisorAbort() {
+[[noreturn]] void logvisorAbort() {
 #if !WINDOWS_STORE
   unsigned int i;
   void* stack[100];
@@ -167,13 +167,13 @@ void logvisorAbort() {
 }
 
 #elif defined(__SWITCH__)
-void logvisorAbort() { exit(1); }
+[[noreturn]] void logvisorAbort() { exit(1); }
 #else
 
 void KillProcessTree() {}
 
 #include <execinfo.h>
-void logvisorAbort() {
+[[noreturn]] void logvisorAbort() {
   void* array[128];
   size_t size = backtrace(array, 128);
 
