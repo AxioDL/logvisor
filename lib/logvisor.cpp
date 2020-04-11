@@ -185,20 +185,20 @@ void KillProcessTree() {}
 #endif
 
 #if __APPLE__
-  std::string cmdLineStr = fmt::format(fmt("atos -p {}"), getpid());
+  std::string cmdLineStr = fmt::format(FMT_STRING("atos -p {}"), getpid());
 #else
-  std::string cmdLineStr = fmt::format(fmt("2>/dev/null addr2line -C -f -e \"{}\""), exeNameBuffer);
+  std::string cmdLineStr = fmt::format(FMT_STRING("2>/dev/null addr2line -C -f -e \"{}\""), exeNameBuffer);
 #endif
 
   for (size_t i = 0; i < size; i++) {
 #if __linux__
     Dl_info dlip;
     if (dladdr(array[i], &dlip))
-      cmdLineStr += fmt::format(fmt(" 0x{:016X}"), (uintptr_t)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
+      cmdLineStr += fmt::format(FMT_STRING(" 0x{:016X}"), (uintptr_t)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
     else
-      cmdLineStr += fmt::format(fmt(" 0x{:016X}"), (uintptr_t)array[i]);
+      cmdLineStr += fmt::format(FMT_STRING(" 0x{:016X}"), (uintptr_t)array[i]);
 #else
-    cmdLineStr += fmt::format(fmt(" 0x{:016X}"), (uintptr_t)array[i]);
+    cmdLineStr += fmt::format(FMT_STRING(" 0x{:016X}"), (uintptr_t)array[i]);
 #endif
   }
 
@@ -245,19 +245,19 @@ static void AbortHandler(int signum) {
   _LogMutex.enabled = false;
   switch (signum) {
   case SIGSEGV:
-    Log.report(logvisor::Fatal, fmt("Segmentation Fault"));
+    Log.report(logvisor::Fatal, FMT_STRING("Segmentation Fault"));
     break;
   case SIGILL:
-    Log.report(logvisor::Fatal, fmt("Bad Execution"));
+    Log.report(logvisor::Fatal, FMT_STRING("Bad Execution"));
     break;
   case SIGFPE:
-    Log.report(logvisor::Fatal, fmt("Floating Point Exception"));
+    Log.report(logvisor::Fatal, FMT_STRING("Floating Point Exception"));
     break;
   case SIGABRT:
-    Log.report(logvisor::Fatal, fmt("Abort Signal"));
+    Log.report(logvisor::Fatal, FMT_STRING("Abort Signal"));
     break;
   default:
-    Log.report(logvisor::Fatal, fmt("unknown signal {}"), signum);
+    Log.report(logvisor::Fatal, FMT_STRING("unknown signal {}"), signum);
     break;
   }
 }
@@ -336,10 +336,10 @@ struct ConsoleLogger : public ILogger {
 
     if (XtermColor) {
       std::fputs(BOLD "[", stderr);
-      fmt::print(stderr, fmt(GREEN "{:.4f} "), tmd);
+      fmt::print(stderr, FMT_STRING(GREEN "{:.4f} "), tmd);
       const uint_fast64_t fIdx = FrameIndex.load();
       if (fIdx != 0)
-        fmt::print(stderr, fmt("({}) "), fIdx);
+        fmt::print(stderr, FMT_STRING("({}) "), fIdx);
       switch (severity) {
       case Info:
         std::fputs(BOLD CYAN "INFO", stderr);
@@ -356,11 +356,11 @@ struct ConsoleLogger : public ILogger {
       default:
         break;
       };
-      fmt::print(stderr, fmt(NORMAL BOLD " {}"), modName);
+      fmt::print(stderr, FMT_STRING(NORMAL BOLD " {}"), modName);
       if (sourceInfo)
-        fmt::print(stderr, fmt(BOLD YELLOW " {{}}"), sourceInfo);
+        fmt::print(stderr, FMT_STRING(BOLD YELLOW " {{}}"), sourceInfo);
       if (thrName)
-        fmt::print(stderr, fmt(BOLD MAGENTA " ({})"), thrName);
+        fmt::print(stderr, FMT_STRING(BOLD MAGENTA " ({})"), thrName);
       std::fputs(NORMAL BOLD "] " NORMAL, stderr);
     } else {
 #if _WIN32
@@ -368,7 +368,7 @@ struct ConsoleLogger : public ILogger {
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
       std::fputc('[', stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN);
-      fmt::print(stderr, fmt("{:.4f} "), tmd);
+      fmt::print(stderr, FMT_STRING("{:.4f} "), tmd);
       const uint64_t fi = FrameIndex.load();
       if (fi != 0)
         std::fprintf(stderr, "(%" PRIu64 ") ", fi);
@@ -393,23 +393,23 @@ struct ConsoleLogger : public ILogger {
         break;
       }
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      fmt::print(stderr, fmt(" {}"), modName);
+      fmt::print(stderr, FMT_STRING(" {}"), modName);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN);
       if (sourceInfo)
-        fmt::print(stderr, fmt(" {{}}"), sourceInfo);
+        fmt::print(stderr, FMT_STRING(" {{}}"), sourceInfo);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_BLUE);
       if (thrName)
-        fmt::print(stderr, fmt(" ({})"), thrName);
+        fmt::print(stderr, FMT_STRING(" ({})"), thrName);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
       std::fputs("] ", stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_WHITE);
 #endif
 #else
       std::fputc('[', stderr);
-      fmt::print(stderr, fmt("{:.4f} "), tmd);
+      fmt::print(stderr, FMT_STRING("{:.4f} "), tmd);
       uint_fast64_t fIdx = FrameIndex.load();
       if (fIdx)
-        fmt::print(stderr, fmt("({}) "), fIdx);
+        fmt::print(stderr, FMT_STRING("({}) "), fIdx);
       switch (severity) {
       case Info:
         std::fputs("INFO", stderr);
@@ -426,11 +426,11 @@ struct ConsoleLogger : public ILogger {
       default:
         break;
       }
-      fmt::print(stderr, fmt(" {}"), modName);
+      fmt::print(stderr, FMT_STRING(" {}"), modName);
       if (sourceInfo)
-        fmt::print(stderr, fmt(" {{}}"), sourceInfo);
+        fmt::print(stderr, FMT_STRING(" {{}}"), sourceInfo);
       if (thrName)
-        fmt::print(stderr, fmt(" ({})"), thrName);
+        fmt::print(stderr, FMT_STRING(" ({})"), thrName);
       std::fputs("] ", stderr);
 #endif
     }
@@ -452,7 +452,7 @@ struct ConsoleLogger : public ILogger {
 
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
                     fmt::format_args args) override {
-    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
     std::fflush(stderr);
@@ -460,7 +460,7 @@ struct ConsoleLogger : public ILogger {
 
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
                     fmt::wformat_args args) override {
-    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
     std::fflush(stderr);
@@ -563,7 +563,7 @@ struct FileLogger : public ILogger {
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
                     fmt::format_args args) override {
     openFile();
-    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
     closeFile();
@@ -572,7 +572,7 @@ struct FileLogger : public ILogger {
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
                     fmt::wformat_args args) override {
     openFile();
-    _reportHead(modName, fmt::format(fmt("{}:{}"), file, linenum).c_str(), severity);
+    _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
     closeFile();

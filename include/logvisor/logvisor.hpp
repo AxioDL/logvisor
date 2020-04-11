@@ -10,7 +10,6 @@
 
 #define FMT_STRING_ALIAS 1
 #define FMT_ENFORCE_COMPILE_STRING 1
-#define FMT_USE_GRISU 0
 #include <fmt/format.h>
 
 #ifdef __SWITCH__
@@ -264,7 +263,7 @@ struct formatter<tp, char> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), fmt(fmtstr), __VA_ARGS__); \
+    return format_to(ctx.out(), FMT_STRING(fmtstr), __VA_ARGS__); \
   } \
 }; \
 template <> \
@@ -273,7 +272,7 @@ struct formatter<tp, wchar_t> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), fmt(L##fmtstr), __VA_ARGS__); \
+    return format_to(ctx.out(), FMT_STRING(L##fmtstr), __VA_ARGS__); \
   } \
 }; \
 template <> \
@@ -282,7 +281,7 @@ struct formatter<tp, char16_t> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), fmt(u##fmtstr), __VA_ARGS__); \
+    return format_to(ctx.out(), FMT_STRING(u##fmtstr), __VA_ARGS__); \
   } \
 }; \
 template <> \
@@ -291,7 +290,7 @@ struct formatter<tp, char32_t> { \
   constexpr auto parse(ParseContext &ctx) { return ctx.begin(); } \
   template <typename FormatContext> \
   auto format(const tp &obj, FormatContext &ctx) { \
-    return format_to(ctx.out(), fmt(U##fmtstr), __VA_ARGS__); \
+    return format_to(ctx.out(), FMT_STRING(U##fmtstr), __VA_ARGS__); \
   } \
 }; \
 }
