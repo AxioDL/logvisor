@@ -15,7 +15,10 @@ add_library(logvisor
             lib/logvisor.cpp
             include/logvisor/logvisor.hpp)
 
-target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS} fmt)
+if(NOT NX)
+  target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS})
+endif()
+target_link_libraries(logvisor PUBLIC fmt)
 
 target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 

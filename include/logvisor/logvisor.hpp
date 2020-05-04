@@ -12,10 +12,6 @@
 #define FMT_ENFORCE_COMPILE_STRING 1
 #include <fmt/format.h>
 
-#ifdef __SWITCH__
-#include "nxstl/mutex"
-#endif
-
 extern "C" void logvisorBp();
 
 namespace logvisor {
@@ -296,3 +292,11 @@ struct formatter<tp, char32_t> { \
 }
 
 } // namespace logvisor
+
+template <typename S, typename... Args, typename Char = fmt::char_t<S>>
+void quicklog(const S& format, Args&&... args) {
+  logvisor::MainLoggers[0]->report(
+      "quick", logvisor::Info, fmt::to_string_view<Char>(format),
+      fmt::basic_format_args<fmt::buffer_context<Char>>(
+          fmt::internal::make_args_checked<Args...>(format, std::forward<Args>(args)...)));
+}

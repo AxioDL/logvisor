@@ -11,7 +11,7 @@
 #include <TlHelp32.h>
 #elif defined(__SWITCH__)
 #include <cstring>
-#include "nxstl/thread"
+#include <switch.h>
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -167,7 +167,10 @@ void KillProcessTree() {
 }
 
 #elif defined(__SWITCH__)
-[[noreturn]] void logvisorAbort() { exit(1); }
+[[noreturn]] void logvisorAbort() {
+  MainLoggers.clear();
+  exit(1);
+}
 #else
 
 void KillProcessTree() {}
@@ -290,6 +293,238 @@ static inline int ConsoleWidth() {
     return 10;
   return retval;
 }
+
+#ifdef __SWITCH__
+
+struct ConsoleLogger : public ILogger {
+  Service m_svc{};
+  Service m_logger{};
+  bool m_ready = false;
+
+  struct MessageHeader {
+    enum Flags : u32 {
+      IsHead = 1,
+      IsTail = 2,
+    };
+    enum Severity : u32 {
+      Trace,
+      Info,
+      Warning,
+      Error,
+      Critical,
+    };
+
+    u64 pid;
+    u64 thread_context;
+    //union {
+      //BitField<0, 16, Flags> flags;
+      //BitField<16, 8, Severity> severity;
+      //BitField<24, 8, u32> verbosity;
+    //};
+    u32 flags;
+    u32 payload_size;
+
+    Flags GetFlags() const {
+      return Flags(flags & u32(0xffff));
+    }
+    void SetFlags(Flags f) {
+      flags &= ~u32(0xffff);
+      flags |= f;
+    }
+    Severity GetSeverity() const {
+      return Severity((flags >> u32(16)) & u32(0xff));
+    }
+    void SetSeverity(Severity f) {
+      flags &= ~u32(0xff0000);
+      flags |= f << u32(16);
+    }
+    u32 GetVerbosity() const {
+      return u32((flags >> u32(24)) & u32(0xff));
+    }
+    void SetVerbosity(u32 f) {
+      flags &= ~u32(0xff000000);
+      flags |= f << u32(24);
+    }
+
+    bool IsHeadLog() const {
+      return flags & IsHead;
+    }
+    bool IsTailLog() const {
+      return flags & IsTail;
+    }
+  };
+  static_assert(sizeof(MessageHeader) == 0x18, "MessageHeader is incorrect size");
+
+  enum class Field : u8 {
+    Skip = 1,
+    Message = 2,
+    Line = 3,
+    Filename = 4,
+    Function = 5,
+    Module = 6,
+    Thread = 7,
+  };
+
+  static constexpr MessageHeader::Severity LevelToSeverity(Level l) {
+    switch (l) {
+    case Level::Info:
+    default:
+      return MessageHeader::Info;
+    case Level::Warning:
+      return MessageHeader::Warning;
+    case Level::Error:
+      return MessageHeader::Error;
+    case Level::Fatal:
+      return MessageHeader::Critical;
+    }
+  }
+
+  ConsoleLogger() {
+    if (R_SUCCEEDED(smGetService(&m_svc, "lm"))) {
+      auto pid = getpid();
+      if (R_SUCCEEDED(serviceDispatchIn(&m_svc, 0, pid, .out_num_objects = 1, .out_objects = &m_logger))) {
+        m_ready = true;
+        MessageHeader head{};
+        head.pid = getpid();
+        head.SetFlags(MessageHeader::IsHead);
+        serviceDispatch(&m_logger, 0,
+                        .buffer_attrs = { SfBufferAttr_HipcPointer | SfBufferAttr_In },
+                        .buffers = { { &head, sizeof(head) } });
+      }
+    }
+  }
+
+  ~ConsoleLogger() override {
+    if (m_ready) {
+      MessageHeader head{};
+      head.pid = getpid();
+      head.SetFlags(MessageHeader::IsTail);
+      serviceDispatch(&m_logger, 0,
+                      .buffer_attrs = { SfBufferAttr_HipcPointer | SfBufferAttr_In },
+                      .buffers = { { &head, sizeof(head) } });
+    }
+    serviceClose(&m_logger);
+    serviceClose(&m_svc);
+  }
+
+  void SendBuffer(const std::vector<u8>& buf) {
+    serviceDispatch(&m_logger, 0,
+                    .buffer_attrs = { SfBufferAttr_HipcPointer | SfBufferAttr_In },
+                    .buffers = { { buf.data(), buf.size() } });
+  }
+
+  void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) override {
+    if (!m_ready)
+      return;
+
+    const std::thread::id thrId = std::this_thread::get_id();
+    const char* thrName = nullptr;
+    size_t thrNameSize = 0;
+    if (ThreadMap.find(thrId) != ThreadMap.end()) {
+      thrName = ThreadMap[thrId];
+      thrNameSize = std::min(std::strlen(thrName), size_t(255));
+    }
+
+    auto modNameSize = std::min(std::strlen(modName), size_t(255));
+    auto message = fmt::vformat(format, args);
+    auto messageSize = std::min(message.size(), size_t(255));
+
+    std::vector<u8> bufOut(sizeof(MessageHeader) + (thrNameSize ? 2 + thrNameSize : 0) + 2 + modNameSize + 2 + messageSize, '\0');
+
+    auto it = bufOut.begin();
+
+    auto& head = *reinterpret_cast<MessageHeader*>(&*it);
+    head.pid = getpid();
+    head.payload_size = bufOut.size() - sizeof(MessageHeader);
+    head.SetSeverity(LevelToSeverity(severity));
+    it += sizeof(MessageHeader);
+
+    if (thrNameSize) {
+      *it++ = u8(Field::Thread);
+      *it++ = thrNameSize;
+      std::memcpy(&*it, thrName, thrNameSize);
+      it += thrNameSize;
+    }
+
+    *it++ = u8(Field::Module);
+    *it++ = modNameSize;
+    std::memcpy(&*it, modName, modNameSize);
+    it += modNameSize;
+
+    *it++ = u8(Field::Message);
+    *it++ = messageSize;
+    std::memcpy(&*it, message.data(), messageSize);
+    it += messageSize;
+
+    SendBuffer(bufOut);
+  }
+
+  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {}
+
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
+                    fmt::format_args args) override {
+    if (!m_ready)
+      return;
+
+    const std::thread::id thrId = std::this_thread::get_id();
+    const char* thrName = nullptr;
+    size_t thrNameSize = 0;
+    if (ThreadMap.find(thrId) != ThreadMap.end()) {
+      thrName = ThreadMap[thrId];
+      thrNameSize = std::min(std::strlen(thrName), size_t(255));
+    }
+
+    auto modNameSize = std::min(std::strlen(modName), size_t(255));
+    auto fileNameSize = std::min(std::strlen(file), size_t(255));
+    auto message = fmt::vformat(format, args);
+    auto messageSize = std::min(message.size(), size_t(255));
+
+    std::vector<u8> bufOut(sizeof(MessageHeader) + (thrNameSize ? 2 + thrNameSize : 0) + 2 + modNameSize + 2 + fileNameSize + 3 + 4 + 2 + messageSize, '\0');
+
+    auto it = bufOut.begin();
+
+    auto& head = *reinterpret_cast<MessageHeader*>(&*it);
+    head.pid = getpid();
+    head.payload_size = bufOut.size() - sizeof(MessageHeader);
+    head.SetSeverity(LevelToSeverity(severity));
+    it += sizeof(MessageHeader);
+
+    if (thrNameSize) {
+      *it++ = u8(Field::Thread);
+      *it++ = thrNameSize;
+      std::memcpy(&*it, thrName, thrNameSize);
+      it += thrNameSize;
+    }
+
+    *it++ = u8(Field::Module);
+    *it++ = modNameSize;
+    std::memcpy(&*it, modName, modNameSize);
+    it += modNameSize;
+
+    *it++ = u8(Field::Filename);
+    *it++ = fileNameSize;
+    std::memcpy(&*it, file, fileNameSize);
+    it += fileNameSize;
+
+    *it++ = u8(Field::Line);
+    *it++ = 4;
+    *it++ = u8(Field::Skip);
+    std::memcpy(&*it, &linenum, 4);
+    it += 4;
+
+    *it++ = u8(Field::Message);
+    *it++ = messageSize;
+    std::memcpy(&*it, message.data(), messageSize);
+    it += messageSize;
+
+    SendBuffer(bufOut);
+  }
+
+  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
+                    fmt::wformat_args args) override {}
+};
+
+#else
 
 #if _WIN32
 static HANDLE Term = 0;
@@ -466,6 +701,7 @@ struct ConsoleLogger : public ILogger {
     std::fflush(stderr);
   }
 };
+#endif
 
 static bool ConsoleLoggerRegistered = false;
 
