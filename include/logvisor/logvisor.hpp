@@ -12,6 +12,10 @@
 #define FMT_ENFORCE_COMPILE_STRING 1
 #include <fmt/format.h>
 
+#if defined(__SWITCH__) && !defined(LOGVISOR_NX_LM)
+#define LOGVISOR_NX_LM 0
+#endif
+
 extern "C" void logvisorBp();
 
 namespace logvisor {

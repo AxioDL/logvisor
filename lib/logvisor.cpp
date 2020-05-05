@@ -31,7 +31,7 @@
 #include <unordered_map>
 #include <cstdio>
 #include <cinttypes>
-#include <signal.h>
+#include <csignal>
 #include "logvisor/logvisor.hpp"
 
 /* ANSI sequences */
@@ -169,6 +169,7 @@ void KillProcessTree() {
 #elif defined(__SWITCH__)
 [[noreturn]] void logvisorAbort() {
   MainLoggers.clear();
+  nvExit();
   exit(1);
 }
 #else
@@ -294,7 +295,7 @@ static inline int ConsoleWidth() {
   return retval;
 }
 
-#ifdef __SWITCH__
+#if LOGVISOR_NX_LM
 
 struct ConsoleLogger : public ILogger {
   Service m_svc{};
