@@ -47,7 +47,9 @@
 #define FOREGROUND_WHITE FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
 #endif
 
+#ifndef _MSC_VER
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 
 void logvisorBp() {}
 
@@ -91,18 +93,18 @@ void RegisterThreadName(const char* name) {
 
 void KillProcessTree() {
   DWORD myprocID = GetCurrentProcessId();
-  PROCESSENTRY32 pe = {};
-  pe.dwSize = sizeof(PROCESSENTRY32);
+  PROCESSENTRY32W pe = {};
+  pe.dwSize = sizeof(pe);
 
   HANDLE hSnap = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
-  if (::Process32First(hSnap, &pe)) {
+  if (::Process32FirstW(hSnap, &pe)) {
     BOOL bContinue = TRUE;
 
     // kill child processes
     while (bContinue) {
       // only kill child processes and let console window remain
-      if (pe.th32ParentProcessID == myprocID && wcscmp(pe.szExeFile, L"conhost.exe")) {
+      if (pe.th32ParentProcessID == myprocID && std::wcscmp(pe.szExeFile, L"conhost.exe") != 0) {
         HANDLE hChildProc = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe.th32ProcessID);
 
         if (hChildProc) {
@@ -111,7 +113,7 @@ void KillProcessTree() {
         }
       }
 
-      bContinue = ::Process32Next(hSnap, &pe);
+      bContinue = ::Process32NextW(hSnap, &pe);
     }
   }
 }
