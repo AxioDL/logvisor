@@ -15,14 +15,16 @@ add_library(logvisor
             lib/logvisor.cpp
             include/logvisor/logvisor.hpp)
 
-if(NOT NX)
+target_link_libraries(logvisor PUBLIC fmt)
+if(NX)
+  target_link_libraries(logvisor PUBLIC debug nxd optimized nx)
+else()
   target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS})
 endif()
-target_link_libraries(logvisor PUBLIC fmt)
 
 target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
-install(DIRECTORY include/logvisor DESTINATION include) 
+install(DIRECTORY include/logvisor DESTINATION include)
 install(DIRECTORY fmt/include/fmt DESTINATION include)
 
 set(version_config_file "${PROJECT_BINARY_DIR}/logvisorConfigVersion.cmake")
