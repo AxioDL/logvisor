@@ -15,13 +15,38 @@ add_library(logvisor
             lib/logvisor.cpp
             include/logvisor/logvisor.hpp)
 
-target_link_libraries(logvisor PUBLIC fmt)
-if(NX)
-  target_link_libraries(logvisor PUBLIC debug nxd optimized nx)
+if(APPLE OR UNIX)
+  include(ExternalProject)
+  find_package(Git REQUIRED)
+  find_program(MAKE_EXE NAMES gmake make)
+  ExternalProject_Add(
+          project_libbacktrace
+          PREFIX ${PROJECT_BINARY_DIR}/libbacktrace
+          GIT_REPOSITORY https://github.com/status-im/libbacktrace.git
+          GIT_TAG 2e878a38dd7144c84b665019b1085ea38ebe56d1
+          CONFIGURE_COMMAND ${PROJECT_BINARY_DIR}/libbacktrace/src/project_libbacktrace/configure --enable-host-shared --prefix=${PROJECT_BINARY_DIR}/libbacktrace/install --enable-shared=no --enable-static=yes
+          BUILD_COMMAND ${MAKE_EXE}
+          INSTALL_COMMAND ${MAKE_EXE} install
+          BUILD_IN_SOURCE 1
+  )
+  add_library(libbacktrace STATIC IMPORTED GLOBAL)
+  set_target_properties(libbacktrace PROPERTIES IMPORTED_LOCATION "${PROJECT_BINARY_DIR}/libbacktrace/install/lib/libbacktrace.a")
+  set_target_properties(libbacktrace PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${PROJECT_BINARY_DIR}/libbacktrace/install/include")
+  # Hack for INTERFACE_INCLUDE_DIRECTORIES propagation
+  # https://gitlab.kitware.com/cmake/cmake/-/issues/15052
+  file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/libbacktrace/install/include")
+  add_dependencies(libbacktrace project_libbacktrace)
+  set(BACKTRACE_LIBS libbacktrace)
 else()
-  target_link_libraries(logvisor PUBLIC ${CMAKE_DL_LIBS})
+  set(BACKTRACE_LIBS "")
 endif()
 
+target_link_libraries(logvisor PUBLIC fmt)
+if(NX)
+    target_link_libraries(logvisor PUBLIC debug nxd optimized nx)
+else()
+    target_link_libraries(logvisor PRIVATE ${CMAKE_DL_LIBS} ${BACKTRACE_LIBS})
+endif()
 target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 install(DIRECTORY include/logvisor DESTINATION include)

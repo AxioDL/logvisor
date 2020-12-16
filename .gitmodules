@@ -1,3 +1,6 @@
 [submodule "fmt"]
 	path = fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "libbacktrace"]
+	path = libbacktrace
+	url = https://github.com/status-im/libbacktrace.git

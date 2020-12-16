@@ -178,57 +178,26 @@ void KillProcessTree() {
 
 void KillProcessTree() {}
 
-#include <execinfo.h>
-[[noreturn]] void logvisorAbort() {
-  void* array[128];
-  size_t size = backtrace(array, 128);
+#include <backtrace.h>
 
-  constexpr size_t exeBufSize = 1024 + 1;
-  char exeNameBuffer[exeBufSize] = {};
+void backtrace_error(void* data, const char* msg, int errnum) {
+  std::fprintf(stderr, "Error retrieving stack trace: %d %s\n", errnum, msg);
+}
 
-#if __linux__
-  readlink("/proc/self/exe", exeNameBuffer, exeBufSize);
-#endif
-
-#if __APPLE__
-  std::string cmdLineStr = fmt::format(FMT_STRING("atos -p {}"), getpid());
-#else
-  std::string cmdLineStr = fmt::format(FMT_STRING("2>/dev/null addr2line -C -f -e \"{}\""), exeNameBuffer);
-#endif
-
-  for (size_t i = 0; i < size; i++) {
-#if __linux__
-    Dl_info dlip;
-    if (dladdr(array[i], &dlip))
-      cmdLineStr += fmt::format(FMT_STRING(" 0x{:016X}"), (uintptr_t)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
-    else
-      cmdLineStr += fmt::format(FMT_STRING(" 0x{:016X}"), (uintptr_t)array[i]);
-#else
-    cmdLineStr += fmt::format(FMT_STRING(" 0x{:016X}"), (uintptr_t)array[i]);
-#endif
+int backtrace_callback(void* data, uintptr_t pc, const char* filename, int lineno, const char* function) {
+  int status = -255;
+  char* demangledName = abi::__cxa_demangle(function, nullptr, nullptr, &status);
+  std::fprintf(stderr, "0x%lX %s\n\t%s:%d\n", pc, status == 0 ? demangledName : function, filename, lineno);
+  if (demangledName != nullptr) {
+    std::free(demangledName);
   }
+  return 0;
+}
 
-  FILE* fp = popen(cmdLineStr.c_str(), "r");
-  if (fp) {
-    char readBuf[256];
-    size_t readSz;
-    while ((readSz = fread(readBuf, 1, 256, fp)))
-      std::fwrite(readBuf, 1, readSz, stderr);
-    pclose(fp);
-  } else {
-    for (size_t i = 0; i < size; i++) {
-      std::fputs("- ", stderr);
-      Dl_info dlip;
-      if (dladdr(array[i], &dlip)) {
-        int status;
-        char* demangledName = abi::__cxa_demangle(dlip.dli_sname, nullptr, nullptr, &status);
-        std::fprintf(stderr, "%p(%s+%p)\n", dlip.dli_saddr, demangledName ? demangledName : dlip.dli_sname,
-                     (void*)((uint8_t*)array[i] - (uint8_t*)dlip.dli_fbase));
-        std::free(demangledName);
-      } else {
-        std::fprintf(stderr, "%p\n", array[i]);
-      }
-    }
+[[noreturn]] void logvisorAbort() {
+  backtrace_state* state = backtrace_create_state(nullptr, 0, backtrace_error, nullptr);
+  if (state != nullptr) {
+    backtrace_full(state, 0, backtrace_callback, backtrace_error, nullptr);
   }
 
   std::fflush(stderr);
