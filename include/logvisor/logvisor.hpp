@@ -17,6 +17,7 @@
 #endif
 
 extern "C" void logvisorBp();
+#define log_typeid(type) std::hash<std::string>()(#type)
 
 namespace logvisor {
 
@@ -43,6 +44,10 @@ enum Level {
  * @brief Backend interface for receiving app-wide log events
  */
 struct ILogger {
+private:
+  uint64_t m_typeHash;
+public:
+  ILogger(uint64_t typeHash) : m_typeHash(typeHash) {}
   virtual ~ILogger() = default;
   virtual void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) = 0;
   virtual void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) = 0;
@@ -50,6 +55,8 @@ struct ILogger {
                             fmt::string_view format, fmt::format_args args) = 0;
   virtual void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
                             fmt::wstring_view format, fmt::wformat_args args) = 0;
+
+  [[nodiscard]] uint64_t  getTypeId() const { return m_typeHash; }
 };
 
 /**

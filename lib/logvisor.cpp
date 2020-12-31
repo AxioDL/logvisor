@@ -536,7 +536,7 @@ static const char* Term = nullptr;
 #endif
 bool XtermColor = false;
 struct ConsoleLogger : public ILogger {
-  ConsoleLogger() {
+  ConsoleLogger() : ILogger(log_typeid(ConsoleLogger)) {
 #if _WIN32
 #if !WINDOWS_STORE
     const char* conemuANSI = getenv("ConEmuANSI");
@@ -555,6 +555,7 @@ struct ConsoleLogger : public ILogger {
     }
 #endif
   }
+  ~ConsoleLogger() override = default;
 
   static void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     /* Clear current line out */
@@ -738,8 +739,10 @@ void RegisterStandardExceptions() {
 
 struct FileLogger : public ILogger {
   FILE* fp;
+  FileLogger(uint64_t typeHash) : ILogger(typeHash) {}
   virtual void openFile() = 0;
   virtual void closeFile() { std::fclose(fp); }
+  virtual ~FileLogger() = default;
 
   void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     const std::chrono::steady_clock::duration tm = CurrentUptime();
@@ -820,8 +823,9 @@ struct FileLogger : public ILogger {
 
 struct FileLogger8 : public FileLogger {
   const char* m_filepath;
-  FileLogger8(const char* filepath) : m_filepath(filepath) {}
+  FileLogger8(const char* filepath) : FileLogger(log_typeid(FileLogger8)), m_filepath(filepath) {}
   void openFile() override { fp = std::fopen(m_filepath, "a"); }
+  ~FileLogger8() override = default;
 };
 
 void RegisterFileLogger(const char* filepath) {
@@ -833,17 +837,19 @@ void RegisterFileLogger(const char* filepath) {
 
 struct FileLogger16 : public FileLogger {
   const wchar_t* m_filepath;
-  FileLogger16(const wchar_t* filepath) : m_filepath(filepath) {}
+  FileLogger16(const wchar_t* filepath) : FileLogger(log_typeid(FileLogger16)), m_filepath(filepath) {}
   void openFile() override { fp = _wfopen(m_filepath, L"a"); }
+  ~FileLogger16() override = default;
 };
 
 void RegisterFileLogger(const wchar_t* filepath) {
   /* Determine if file logger already added */
-  for (auto& logger : MainLoggers) {
-    FileLogger16* filelogger = dynamic_cast<FileLogger16*>(logger.get());
-    if (filelogger) {
-      if (!wcscmp(filepath, filelogger->m_filepath))
+  for (const auto& logger : MainLoggers) {
+    if (logger->getTypeId() == log_typeid(FileLogger16)) {
+      const auto* fl = static_cast<const FileLogger16*>(logger.get());
+      if (!wcscmp(filepath, fl->m_filepath)) {
         return;
+      }
     }
   }
 
