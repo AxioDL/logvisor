@@ -738,11 +738,21 @@ void RegisterStandardExceptions() {
 }
 
 struct FileLogger : public ILogger {
-  FILE* fp;
+  FILE* fp = nullptr;
   FileLogger(uint64_t typeHash) : ILogger(typeHash) {}
   virtual void openFile() = 0;
-  virtual void closeFile() { std::fclose(fp); }
-  virtual ~FileLogger() = default;
+  void openFileIfNeeded() {
+    if (!fp) {
+      openFile();
+    }
+  }
+  virtual void closeFile() { 
+    if (fp) {
+      std::fclose(fp);
+      fp = nullptr;
+    }
+  }
+  virtual ~FileLogger() { closeFile(); }
 
   void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     const std::chrono::steady_clock::duration tm = CurrentUptime();
@@ -787,37 +797,33 @@ struct FileLogger : public ILogger {
   }
 
   void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) override {
-    openFile();
+    openFileIfNeeded();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
-    closeFile();
   }
 
   void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {
-    openFile();
+    openFileIfNeeded();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
-    closeFile();
   }
 
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
                     fmt::format_args args) override {
-    openFile();
+    openFileIfNeeded();
     _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
-    closeFile();
   }
 
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
                     fmt::wformat_args args) override {
-    openFile();
+    openFileIfNeeded();
     _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
-    closeFile();
   }
 };
 
