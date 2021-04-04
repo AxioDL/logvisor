@@ -1,3 +1,6 @@
 [submodule "fmt"]
 	path = fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "sentry"]
+	path = sentry
+	url = git@github.com:getsentry/sentry-native.git

@@ -153,6 +153,16 @@ void RegisterFileLogger(const char* filepath);
  */
 void RegisterStandardExceptions();
 
+#if SENTRY_ENABLED
+/**
+ * @brief Register Sentry crash reporting & logging.
+ * @param appName The application name
+ * @param appVersion The application version
+ * @param cacheDir Directory for Sentry cache files
+ */
+void RegisterSentry(const char* appName, const char* appVersion, const char* cacheDir);
+#endif
+
 #if _WIN32
 /**
  * @brief Spawn an application-owned cmd.exe window for displaying console output

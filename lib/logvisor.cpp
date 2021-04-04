@@ -34,6 +34,10 @@
 #include <csignal>
 #include "logvisor/logvisor.hpp"
 
+#if SENTRY_ENABLED
+#include <sentry.h>
+#endif
+
 /* ANSI sequences */
 #define RED "\x1b[1;31m"
 #define YELLOW "\x1b[1;33m"
@@ -736,6 +740,27 @@ void RegisterStandardExceptions() {
   signal(SIGILL, AbortHandler);
   signal(SIGFPE, AbortHandler);
 }
+
+#if SENTRY_ENABLED
+void RegisterSentry(const char* appName, const char* appVersion, const char* cacheDir) {
+  sentry_options_t *options = sentry_options_new();
+  sentry_options_set_database_path(options, cacheDir);
+  sentry_options_set_auto_session_tracking(options, true);
+  sentry_options_set_symbolize_stacktraces(options, true);
+  sentry_options_set_dsn(options, SENTRY_DSN);
+
+#ifdef NDEBUG
+  sentry_options_set_environment(options, "release");
+#else
+  sentry_options_set_environment(options, "debug");
+#endif
+
+  std::string release = fmt::format(FMT_STRING("{}@{}"), appName, appVersion);
+  sentry_options_set_release(options, release.c_str());
+
+  sentry_init(options);
+}
+#endif
 
 struct FileLogger : public ILogger {
   FILE* fp = nullptr;

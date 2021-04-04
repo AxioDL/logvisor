@@ -15,7 +15,19 @@ add_library(logvisor
             lib/logvisor.cpp
             include/logvisor/logvisor.hpp)
 
-target_link_libraries(logvisor PUBLIC fmt)
+if ("${SENTRY_DSN}" STREQUAL "")
+  message(STATUS "SENTRY_DSN not set, not enabling Sentry")
+  target_compile_definitions(logvisor PUBLIC SENTRY_ENABLED=0)
+  set(SENTRY_LIB "")
+else()
+  message(STATUS "Enabling Sentry integration")
+  add_subdirectory(sentry)
+  target_compile_definitions(logvisor PUBLIC SENTRY_ENABLED=1)
+  target_compile_definitions(logvisor PRIVATE SENTRY_DSN="${SENTRY_DSN}")
+  set(SENTRY_LIB sentry)
+endif()
+
+target_link_libraries(logvisor PUBLIC fmt ${SENTRY_LIB})
 if(NX)
   target_link_libraries(logvisor PUBLIC debug nxd optimized nx)
 else()
@@ -33,7 +45,7 @@ set(config_install_dir "lib/cmake/logvisor")
 
 # Associate target with export
 install(
-    TARGETS logvisor fmt
+    TARGETS logvisor fmt ${SENTRY_LIB}
     EXPORT logvisorTargets
     ARCHIVE DESTINATION "lib"
     INCLUDES DESTINATION include  # This sets the INTERFACE_INCLUDE_DIRECTORIES property of the target.
