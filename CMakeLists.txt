@@ -19,13 +19,23 @@ if ("${SENTRY_DSN}" STREQUAL "")
   message(STATUS "SENTRY_DSN not set, not enabling Sentry")
   target_compile_definitions(logvisor PUBLIC SENTRY_ENABLED=0)
   set(SENTRY_LIB "")
+  set(BREAKPAD_CLIENT "")
 else()
   message(STATUS "Enabling Sentry integration")
   add_subdirectory(sentry)
   target_compile_definitions(logvisor PUBLIC SENTRY_ENABLED=1)
   target_compile_definitions(logvisor PRIVATE SENTRY_DSN="${SENTRY_DSN}")
   set(SENTRY_LIB sentry)
-endif()
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(BREAKPAD_CLIENT breakpad_client)
+    target_compile_options(breakpad_client PRIVATE "-Wno-implicit-fallthrough")
+    target_compile_options(sentry PRIVATE "-Wno-implicit-fallthrough")
+    set_property(TARGET breakpad_client PROPERTY CXX_STANDARD 17)
+    set_property(TARGET sentry PROPERTY CXX_STANDARD 17)
+  else ()
+    set(BREAKPAD_CLIENT "")
+  endif ()
+endif ()
 
 target_link_libraries(logvisor PUBLIC fmt ${SENTRY_LIB})
 if(NX)
@@ -45,7 +55,7 @@ set(config_install_dir "lib/cmake/logvisor")
 
 # Associate target with export
 install(
-    TARGETS logvisor fmt ${SENTRY_LIB}
+    TARGETS logvisor fmt ${SENTRY_LIB} ${BREAKPAD_CLIENT}
     EXPORT logvisorTargets
     ARCHIVE DESTINATION "lib"
     INCLUDES DESTINATION include  # This sets the INTERFACE_INCLUDE_DIRECTORIES property of the target.
