@@ -10,6 +10,12 @@ endif()
 include (CMakePackageConfigHelpers)
 
 add_subdirectory(fmt)
+target_compile_definitions(fmt PUBLIC
+        FMT_STRING_ALIAS=1
+        FMT_ARM_ABI_COMPATIBILITY=1
+        FMT_EXCEPTIONS=0)
+target_compile_definitions(fmt INTERFACE
+        FMT_ENFORCE_COMPILE_STRING=1)
 
 add_library(logvisor
             lib/logvisor.cpp
