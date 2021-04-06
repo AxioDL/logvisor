@@ -1,6 +1,8 @@
 [submodule "fmt"]
 	path = fmt
 	url = https://github.com/fmtlib/fmt
+	branch = master
 [submodule "sentry"]
 	path = sentry
 	url = https://github.com/getsentry/sentry-native.git
+	branch = master
