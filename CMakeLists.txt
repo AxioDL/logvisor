@@ -1,11 +1,9 @@
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  cmake_minimum_required(VERSION 3.10 FATAL_ERROR) # because of c++17
-  project(nod VERSION 0.1)
-  if (NOT MSVC)
-    set(CMAKE_CXX_STANDARD 20)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-  endif()
-endif()
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR) # because of c++17
+project(nod VERSION 0.1)
+if (NOT MSVC)
+  set(CMAKE_CXX_STANDARD 20)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif ()
 
 include (CMakePackageConfigHelpers)
 
@@ -69,6 +67,7 @@ endif()
 
 target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 install(DIRECTORY include/logvisor DESTINATION include)
 if (FMT_LIB)
   install(DIRECTORY fmt/include/fmt DESTINATION include)
@@ -111,3 +110,4 @@ install(
     FILES "${config_file}" "${version_config_file}"
     DESTINATION ${config_install_dir}
 )
+endif()
