@@ -9,13 +9,16 @@ endif()
 
 include (CMakePackageConfigHelpers)
 
-add_subdirectory(fmt)
-target_compile_definitions(fmt PUBLIC
-        FMT_STRING_ALIAS=1
-        FMT_ARM_ABI_COMPATIBILITY=1
-        FMT_EXCEPTIONS=0)
-target_compile_definitions(fmt INTERFACE
-        FMT_ENFORCE_COMPILE_STRING=1)
+if (NOT TARGET fmt)
+  add_subdirectory(fmt)
+  target_compile_definitions(fmt PUBLIC
+      FMT_STRING_ALIAS=1
+      FMT_ARM_ABI_COMPATIBILITY=1
+      FMT_EXCEPTIONS=0)
+  target_compile_definitions(fmt INTERFACE
+      FMT_ENFORCE_COMPILE_STRING=1)
+  set(FMT_LIB fmt)
+endif ()
 
 add_library(logvisor
             lib/logvisor.cpp
@@ -28,7 +31,12 @@ if ("${SENTRY_DSN}" STREQUAL "")
   set(BREAKPAD_CLIENT "")
 else ()
   message(STATUS "Enabling Sentry integration")
-  add_subdirectory(sentry)
+  include(FetchContent)
+  FetchContent_Declare(sentry
+      GIT_REPOSITORY https://github.com/getsentry/sentry-native.git
+      GIT_TAG 5fcb1dc4d1c8b85fc5ab225d29c7394b375fd1e9
+  )
+  FetchContent_MakeAvailable(sentry)
   target_compile_definitions(logvisor PUBLIC SENTRY_ENABLED=1)
   target_compile_definitions(logvisor PRIVATE SENTRY_DSN="${SENTRY_DSN}")
   set(SENTRY_LIB sentry)
@@ -62,7 +70,9 @@ endif()
 target_include_directories(logvisor PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 install(DIRECTORY include/logvisor DESTINATION include)
-install(DIRECTORY fmt/include/fmt DESTINATION include)
+if (FMT_LIB)
+  install(DIRECTORY fmt/include/fmt DESTINATION include)
+endif ()
 
 set(version_config_file "${PROJECT_BINARY_DIR}/logvisorConfigVersion.cmake")
 set(config_file "${PROJECT_BINARY_DIR}/logvisorConfig.cmake")
@@ -70,7 +80,7 @@ set(config_install_dir "lib/cmake/logvisor")
 
 # Associate target with export
 install(
-    TARGETS logvisor fmt ${SENTRY_LIB} ${BREAKPAD_CLIENT}
+    TARGETS logvisor ${FMT_LIB} ${SENTRY_LIB} ${BREAKPAD_CLIENT}
     EXPORT logvisorTargets
     ARCHIVE DESTINATION "lib"
     INCLUDES DESTINATION include  # This sets the INTERFACE_INCLUDE_DIRECTORIES property of the target.
