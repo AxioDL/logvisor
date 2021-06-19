@@ -722,9 +722,9 @@ struct ConsoleLogger : public ILogger {
     const double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
                        static_cast<double>(std::chrono::steady_clock::duration::period::den);
     const std::thread::id thrId = std::this_thread::get_id();
-    const wchar_t* thrName = nullptr;
+    std::optional<std::wstring> thrName;
     if (ThreadMap.find(thrId) != ThreadMap.end())
-      thrName = Widen(ThreadMap[thrId]).c_str();
+      thrName = Widen(ThreadMap[thrId]);
 
     if (XtermColor) {
       std::fputws(W_BOLD L"[", stderr);
@@ -752,7 +752,7 @@ struct ConsoleLogger : public ILogger {
       if (sourceInfo)
         fmt::print(stderr, FMT_STRING(W_BOLD W_YELLOW L" {{}}"), sourceInfo);
       if (thrName)
-        fmt::print(stderr, FMT_STRING(W_BOLD W_MAGENTA L" ({})"), thrName);
+        fmt::print(stderr, FMT_STRING(W_BOLD W_MAGENTA L" ({})"), *thrName);
       std::fputws(W_NORMAL W_BOLD L"] " W_NORMAL, stderr);
     } else {
 #if _WIN32
@@ -791,7 +791,7 @@ struct ConsoleLogger : public ILogger {
         fmt::print(stderr, FMT_STRING(L" {{}}"), sourceInfo);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_BLUE);
       if (thrName)
-        fmt::print(stderr, FMT_STRING(L" ({})"), thrName);
+        fmt::print(stderr, FMT_STRING(L" ({})"), *thrName);
       SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
       std::fputws(L"] ", stderr);
       SetConsoleTextAttribute(Term, FOREGROUND_WHITE);
