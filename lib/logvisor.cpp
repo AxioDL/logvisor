@@ -33,6 +33,7 @@
 #include <cinttypes>
 #include <csignal>
 #include <locale>
+#include <optional>
 #include "logvisor/logvisor.hpp"
 
 #if SENTRY_ENABLED
@@ -822,7 +823,7 @@ struct ConsoleLogger : public ILogger {
       if (sourceInfo)
         fmt::print(stderr, FMT_STRING(L" {{}}"), sourceInfo);
       if (thrName)
-        fmt::print(stderr, FMT_STRING(L" ({})"), thrName);
+        fmt::print(stderr, FMT_STRING(L" ({})"), *thrName);
       std::fputws(L"] ", stderr);
 #endif
     }
