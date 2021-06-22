@@ -49,14 +49,6 @@
 #define BOLD "\x1b[1m"
 #define NORMAL "\x1b[0m"
 
-#define W_RED L"\x001b[1;31m"
-#define W_YELLOW L"\x001b[1;33m"
-#define W_GREEN L"\x001b[1;32m"
-#define W_MAGENTA L"\x001b[1;35m"
-#define W_CYAN L"\x001b[1;36m"
-#define W_BOLD L"\x001b[1m"
-#define W_NORMAL L"\x001b[0m"
-
 #if _WIN32
 #define FOREGROUND_WHITE FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
 #endif
@@ -71,13 +63,6 @@ namespace logvisor {
 static Module Log("logvisor");
 
 static std::unordered_map<std::thread::id, const char*> ThreadMap;
-
-static std::wstring Widen(std::string str) {
-  std::wstring wide(str.size(), L'\0');
-  std::locale loc;
-  std::use_facet<std::ctype<wchar_t>>(loc).widen(str.data(), str.data()+str.size(), wide.data());
-  return wide;
-}
 
 static void AddThreadToMap(const char* name) {
   auto lk = LockLog();
@@ -119,16 +104,16 @@ void KillProcessTree() {
 
   HANDLE hSnap = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
-  if (::Process32FirstW(hSnap, &pe)) {
+  if (::Process32FirstW(hSnap, &pe) == TRUE) {
     BOOL bContinue = TRUE;
 
     // kill child processes
-    while (bContinue) {
+    while (bContinue == TRUE) {
       // only kill child processes and let console window remain
       if (pe.th32ParentProcessID == myprocID && std::wcscmp(pe.szExeFile, L"conhost.exe") != 0) {
         HANDLE hChildProc = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe.th32ProcessID);
 
-        if (hChildProc) {
+        if (hChildProc != nullptr) {
           ::TerminateProcess(hChildProc, 1);
           ::CloseHandle(hChildProc);
         }
@@ -148,9 +133,9 @@ void KillProcessTree() {
   HANDLE process;
 
   process = GetCurrentProcess();
-  SymInitialize(process, NULL, TRUE);
-  frames = CaptureStackBackTrace(0, 100, stack, NULL);
-  symbol = (SYMBOL_INFO*)calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1);
+  SymInitialize(process, nullptr, TRUE);
+  frames = CaptureStackBackTrace(0, 100, stack, nullptr);
+  symbol = static_cast<SYMBOL_INFO*>(calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1));
   symbol->MaxNameLen = 255;
   symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 
@@ -268,28 +253,6 @@ void KillProcessTree() {}
 
 LogMutex _LogMutex;
 
-#if _WIN32
-static void AbortHandler(int signum) {
-  _LogMutex.enabled = false;
-  switch (signum) {
-  case SIGSEGV:
-    Log.report(logvisor::Fatal, FMT_STRING(L"Segmentation Fault"));
-    break;
-  case SIGILL:
-    Log.report(logvisor::Fatal, FMT_STRING(L"Bad Execution"));
-    break;
-  case SIGFPE:
-    Log.report(logvisor::Fatal, FMT_STRING(L"Floating Point Exception"));
-    break;
-  case SIGABRT:
-    Log.report(logvisor::Fatal, FMT_STRING(L"Abort Signal"));
-    break;
-  default:
-    Log.report(logvisor::Fatal, FMT_STRING(L"unknown signal {}"), signum);
-    break;
-  }
-}
-#else
 static void AbortHandler(int signum) {
     _LogMutex.enabled = false;
     switch (signum) {
@@ -310,15 +273,14 @@ static void AbortHandler(int signum) {
         break;
     }
 }
-#endif
 
 uint64_t _LogCounter;
 
 std::vector<std::unique_ptr<ILogger>> MainLoggers;
 std::atomic_size_t ErrorCount(0);
-static std::chrono::steady_clock MonoClock;
-static std::chrono::steady_clock::time_point GlobalStart = MonoClock.now();
-static inline std::chrono::steady_clock::duration CurrentUptime() { return MonoClock.now() - GlobalStart; }
+using MonoClock = std::chrono::steady_clock;
+static MonoClock::time_point GlobalStart = MonoClock::now();
+static inline MonoClock::duration CurrentUptime() { return MonoClock::now() - GlobalStart; }
 std::atomic_uint_fast64_t FrameIndex(0);
 
 static inline int ConsoleWidth() {
@@ -603,7 +565,7 @@ struct ConsoleLogger : public ILogger {
 
   static void _reportHead(const char* modName, const char* sourceInfo, Level severity) {
     /* Clear current line out */
-    std::fprintf(stderr, "\r%*c\r", ConsoleWidth(), ' ');
+    // std::fprintf(stderr, "\r%*c\r", ConsoleWidth(), ' ');
 
     const std::chrono::steady_clock::duration tm = CurrentUptime();
     const double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
@@ -715,131 +677,10 @@ struct ConsoleLogger : public ILogger {
     }
   }
 
-  static void _reportHead(const wchar_t* modName, const wchar_t* sourceInfo, Level severity) {
-    /* Clear current line out */
-    std::fwprintf(stderr, L"\r%*c\r", ConsoleWidth(), L' ');
-
-    const std::chrono::steady_clock::duration tm = CurrentUptime();
-    const double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
-                       static_cast<double>(std::chrono::steady_clock::duration::period::den);
-    const std::thread::id thrId = std::this_thread::get_id();
-    std::optional<std::wstring> thrName;
-    if (ThreadMap.find(thrId) != ThreadMap.end())
-      thrName = Widen(ThreadMap[thrId]);
-
-    if (XtermColor) {
-      std::fputws(W_BOLD L"[", stderr);
-      fmt::print(stderr, FMT_STRING(W_GREEN L"{:.4f} "), tmd);
-      const uint_fast64_t fIdx = FrameIndex.load();
-      if (fIdx != 0)
-        fmt::print(stderr, FMT_STRING(L"({}) "), fIdx);
-      switch (severity) {
-      case Info:
-        std::fputws(W_BOLD W_CYAN L"INFO", stderr);
-        break;
-      case Warning:
-        std::fputws(W_BOLD W_YELLOW L"WARNING", stderr);
-        break;
-      case Error:
-        std::fputws(W_RED W_BOLD L"ERROR", stderr);
-        break;
-      case Fatal:
-        std::fputws(W_BOLD W_RED L"FATAL ERROR", stderr);
-        break;
-      default:
-        break;
-      };
-      fmt::print(stderr, FMT_STRING(W_NORMAL W_BOLD L" {}"), modName);
-      if (sourceInfo)
-        fmt::print(stderr, FMT_STRING(W_BOLD W_YELLOW L" {{}}"), sourceInfo);
-      if (thrName)
-        fmt::print(stderr, FMT_STRING(W_BOLD W_MAGENTA L" ({})"), *thrName);
-      std::fputws(W_NORMAL W_BOLD L"] " W_NORMAL, stderr);
-    } else {
-#if _WIN32
-#if !WINDOWS_STORE
-      SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      std::fputwc(L'[', stderr);
-      SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN);
-      fmt::print(stderr, FMT_STRING(L"{:.4f} "), tmd);
-      const uint64_t fi = FrameIndex.load();
-      if (fi != 0)
-        std::fwprintf(stderr, L"(%" PRIu64 L") ", fi);
-      switch (severity) {
-      case Info:
-        SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
-        std::fputws(L"INFO", stderr);
-        break;
-      case Warning:
-        SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN);
-        std::fputws(L"WARNING", stderr);
-        break;
-      case Error:
-        SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED);
-        std::fputws(L"ERROR", stderr);
-        break;
-      case Fatal:
-        SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED);
-        std::fputws(L"FATAL ERROR", stderr);
-        break;
-      default:
-        break;
-      }
-      SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      fmt::print(stderr, FMT_STRING(L" {}"), modName);
-      SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN);
-      if (sourceInfo)
-        fmt::print(stderr, FMT_STRING(L" {{}}"), sourceInfo);
-      SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_BLUE);
-      if (thrName)
-        fmt::print(stderr, FMT_STRING(L" ({})"), *thrName);
-      SetConsoleTextAttribute(Term, FOREGROUND_INTENSITY | FOREGROUND_WHITE);
-      std::fputws(L"] ", stderr);
-      SetConsoleTextAttribute(Term, FOREGROUND_WHITE);
-#endif
-#else
-      std::fputwc(L'[', stderr);
-      fmt::print(stderr, FMT_STRING(L"{:.4f} "), tmd);
-      uint_fast64_t fIdx = FrameIndex.load();
-      if (fIdx)
-        fmt::print(stderr, FMT_STRING(L"({}) "), fIdx);
-      switch (severity) {
-      case Info:
-        std::fputws(L"INFO", stderr);
-        break;
-      case Warning:
-        std::fputws(L"WARNING", stderr);
-        break;
-      case Error:
-        std::fputws(L"ERROR", stderr);
-        break;
-      case Fatal:
-        std::fputws(L"FATAL ERROR", stderr);
-        break;
-      default:
-        break;
-      }
-      fmt::print(stderr, FMT_STRING(L" {}"), modName);
-      if (sourceInfo)
-        fmt::print(stderr, FMT_STRING(L" {{}}"), sourceInfo);
-      if (thrName)
-        fmt::print(stderr, FMT_STRING(L" ({})"), *thrName);
-      std::fputws(L"] ", stderr);
-#endif
-    }
-  }
-
   void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) override {
     _reportHead(modName, nullptr, severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
-    std::fflush(stderr);
-  }
-
-  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {
-    _reportHead(Widen(modName).c_str(), nullptr, severity);
-    fmt::vprint(stderr, format, args);
-    std::fputwc(L'\n', stderr);
     std::fflush(stderr);
   }
 
@@ -848,14 +689,6 @@ struct ConsoleLogger : public ILogger {
     _reportHead(modName, fmt::format(FMT_STRING("{}:{}"), file, linenum).c_str(), severity);
     fmt::vprint(stderr, format, args);
     std::fputc('\n', stderr);
-    std::fflush(stderr);
-  }
-
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
-                    fmt::wformat_args args) override {
-    _reportHead(Widen(modName).c_str(), fmt::format(FMT_STRING(L"{}:{}"), Widen(file).c_str(), linenum).c_str(), severity);
-    fmt::vprint(stderr, format, args);
-    std::fputwc(L'\n', stderr);
     std::fflush(stderr);
   }
 };
@@ -868,6 +701,11 @@ void RegisterConsoleLogger() {
   if (!ConsoleLoggerRegistered) {
     MainLoggers.emplace_back(new ConsoleLogger);
     ConsoleLoggerRegistered = true;
+#if _WIN32 && 0
+    if (GetACP() != CP_UTF8) {
+      Log.report(Fatal, FMT_STRING("UTF-8 codepage not active! (Windows 10 1903+ required)"));
+    }
+#endif
   }
 }
 
@@ -971,60 +809,11 @@ struct FileLogger : public ILogger {
     std::fputs("] ", fp);
   }
 
-  void _reportHead(const wchar_t* modName, const wchar_t* sourceInfo, Level severity) {
-    const std::chrono::steady_clock::duration tm = CurrentUptime();
-    const double tmd = tm.count() * std::chrono::steady_clock::duration::period::num /
-                       static_cast<double>(std::chrono::steady_clock::duration::period::den);
-    const std::thread::id thrId = std::this_thread::get_id();
-    const wchar_t* thrName = nullptr;
-    if (ThreadMap.find(thrId) != ThreadMap.end()) {
-      thrName = Widen(ThreadMap[thrId]).c_str();
-    }
-
-    std::fputwc(L'[', fp);
-    std::fwprintf(fp, L"%5.4f ", tmd);
-    const uint_fast64_t fIdx = FrameIndex.load();
-    if (fIdx != 0) {
-      std::fwprintf(fp, L"(%" PRIu64 L") ", fIdx);
-    }
-    switch (severity) {
-    case Info:
-      std::fputws(L"INFO", fp);
-      break;
-    case Warning:
-      std::fputws(L"WARNING", fp);
-      break;
-    case Error:
-      std::fputws(L"ERROR", fp);
-      break;
-    case Fatal:
-      std::fputws(L"FATAL ERROR", fp);
-      break;
-    default:
-      break;
-    };
-    std::fwprintf(fp, L" %s", modName);
-    if (sourceInfo) {
-      std::fwprintf(fp, L" {%s}", sourceInfo);
-    }
-    if (thrName) {
-      std::fwprintf(fp, L" (%s)", thrName);
-    }
-    std::fputws(L"] ", fp);
-  }
-
   void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) override {
     openFileIfNeeded();
     _reportHead(modName, nullptr, severity);
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
-  }
-
-  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {
-    openFileIfNeeded();
-    _reportHead(Widen(modName).c_str(), nullptr, severity);
-    fmt::vprint(fp, format, args);
-    std::fputwc(L'\n', fp);
   }
 
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
@@ -1034,20 +823,12 @@ struct FileLogger : public ILogger {
     fmt::vprint(fp, format, args);
     std::fputc('\n', fp);
   }
-
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
-                    fmt::wformat_args args) override {
-    openFileIfNeeded();
-    _reportHead(Widen(modName).c_str(), Widen(fmt::format(FMT_STRING("{}:{}"), file, linenum)).c_str(), severity);
-    fmt::vprint(fp, format, args);
-    std::fputwc(L'\n', fp);
-  }
 };
 
 struct FileLogger8 : public FileLogger {
   const char* m_filepath;
-  FileLogger8(const char* filepath) : FileLogger(log_typeid(FileLogger8)), m_filepath(filepath) {}
-  void openFile() override { fp = std::fopen(m_filepath, "a"); }
+  explicit FileLogger8(const char* filepath) : FileLogger(log_typeid(FileLogger8)), m_filepath(filepath) {}
+  void openFile() override { fp = std::fopen(m_filepath, "ae"); }
   ~FileLogger8() override = default;
 };
 
@@ -1055,31 +836,5 @@ void RegisterFileLogger(const char* filepath) {
   /* Otherwise construct new file logger */
   MainLoggers.emplace_back(new FileLogger8(filepath));
 }
-
-#if LOG_UCS2
-
-struct FileLogger16 : public FileLogger {
-  const wchar_t* m_filepath;
-  FileLogger16(const wchar_t* filepath) : FileLogger(log_typeid(FileLogger16)), m_filepath(filepath) {}
-  void openFile() override { fp = _wfopen(m_filepath, L"a"); }
-  ~FileLogger16() override = default;
-};
-
-void RegisterFileLogger(const wchar_t* filepath) {
-  /* Determine if file logger already added */
-  for (const auto& logger : MainLoggers) {
-    if (logger->getTypeId() == log_typeid(FileLogger16)) {
-      const auto* fl = static_cast<const FileLogger16*>(logger.get());
-      if (!wcscmp(filepath, fl->m_filepath)) {
-        return;
-      }
-    }
-  }
-
-  /* Otherwise construct new file logger */
-  MainLoggers.emplace_back(new FileLogger16(filepath));
-}
-
-#endif
 
 } // namespace logvisor
