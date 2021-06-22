@@ -21,10 +21,6 @@ namespace logvisor {
 
 [[noreturn]] void logvisorAbort();
 
-#if _WIN32 && UNICODE
-#define LOG_UCS2 1
-#endif
-
 /* True if ANSI color available */
 extern bool XtermColor;
 
@@ -48,11 +44,8 @@ public:
   ILogger(uint64_t typeHash) : m_typeHash(typeHash) {}
   virtual ~ILogger() = default;
   virtual void report(const char* modName, Level severity, fmt::string_view format, fmt::format_args args) = 0;
-  virtual void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) = 0;
   virtual void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
                             fmt::string_view format, fmt::format_args args) = 0;
-  virtual void reportSource(const char* modName, Level severity, const char* file, unsigned linenum,
-                            fmt::wstring_view format, fmt::wformat_args args) = 0;
 
   [[nodiscard]] uint64_t  getTypeId() const { return m_typeHash; }
 };
@@ -106,7 +99,7 @@ struct LogMutex {
     if (enabled)
       return std::unique_lock<std::recursive_mutex>(mutex);
     else
-      return std::unique_lock<std::recursive_mutex>();
+      return {};
   }
 };
 extern LogMutex _LogMutex;
@@ -166,18 +159,6 @@ void RegisterSentry(const char* appName, const char* appVersion, const char* cac
  * @brief Spawn an application-owned cmd.exe window for displaying console output
  */
 void CreateWin32Console();
-#endif
-
-#if LOG_UCS2
-
-/**
- * @brief Construct and register a file logger (wchar_t version)
- * @param filepath Path to write the file
- *
- * If there's already a file logger registered to the same file, this is a no-op.
- */
-void RegisterFileLogger(const wchar_t* filepath);
-
 #endif
 
 /**
