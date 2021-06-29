@@ -468,8 +468,6 @@ struct ConsoleLogger : public ILogger {
     SendBuffer(bufOut);
   }
 
-  void report(const char* modName, Level severity, fmt::wstring_view format, fmt::wformat_args args) override {}
-
   void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::string_view format,
                     fmt::format_args args) override {
     if (!m_ready)
@@ -528,9 +526,6 @@ struct ConsoleLogger : public ILogger {
 
     SendBuffer(bufOut);
   }
-
-  void reportSource(const char* modName, Level severity, const char* file, unsigned linenum, fmt::wstring_view format,
-                    fmt::wformat_args args) override {}
 };
 
 #else
@@ -701,10 +696,14 @@ void RegisterConsoleLogger() {
   if (!ConsoleLoggerRegistered) {
     MainLoggers.emplace_back(new ConsoleLogger);
     ConsoleLoggerRegistered = true;
-#if _WIN32 && 0
+#if _WIN32
+#if 0
     if (GetACP() != CP_UTF8) {
       Log.report(Fatal, FMT_STRING("UTF-8 codepage not active! (Windows 10 1903+ required)"));
     }
+#else
+    SetConsoleOutputCP(CP_UTF8);
+#endif
 #endif
   }
 }
@@ -759,7 +758,7 @@ struct FileLogger : public ILogger {
       openFile();
     }
   }
-  virtual void closeFile() { 
+  virtual void closeFile() {
     if (fp) {
       std::fclose(fp);
       fp = nullptr;
@@ -828,7 +827,7 @@ struct FileLogger : public ILogger {
 struct FileLogger8 : public FileLogger {
   const char* m_filepath;
   explicit FileLogger8(const char* filepath) : FileLogger(log_typeid(FileLogger8)), m_filepath(filepath) {}
-  void openFile() override { fp = std::fopen(m_filepath, "ae"); }
+  void openFile() override { fp = std::fopen(m_filepath, "a"); }
   ~FileLogger8() override = default;
 };
 
