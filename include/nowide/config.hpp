@@ -58,8 +58,14 @@
 #define NOWIDE_USE_FILEBUF_REPLACEMENT 0
 #endif
 
-#if defined(__GNUC__) && __GNUC__ >= 7
-#define NOWIDE_FALLTHROUGH __attribute__((fallthrough))
+#if defined(__has_cpp_attribute)
+#define NOWIDE_HAS_CPP_ATTRIBUTE(attr) __has_cpp_attribute(attr)
+#else
+#define NOWIDE_HAS_CPP_ATTRIBUTE(attr) (0)
+#endif
+
+#if NOWIDE_HAS_CPP_ATTRIBUTE(fallthrough)
+#define NOWIDE_FALLTHROUGH [[fallthrough]]
 #else
 #define NOWIDE_FALLTHROUGH
 #endif
