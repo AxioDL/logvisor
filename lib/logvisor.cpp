@@ -760,6 +760,7 @@ struct FileLogger : public ILogger {
   }
   virtual void closeFile() {
     if (fp) {
+      std::fflush(fp);
       std::fclose(fp);
       fp = nullptr;
     }
