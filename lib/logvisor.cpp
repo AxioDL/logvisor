@@ -180,6 +180,10 @@ void KillProcessTree() {
   nvExit();
   exit(1);
 }
+#elif defined(EMSCRIPTEN)
+[[noreturn]] void logvisorAbort() {
+  abort();
+}
 #else
 
 void KillProcessTree() {}
